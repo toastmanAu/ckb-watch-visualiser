@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_amoled">#000000</color>
+    <color name="surface_dark">#0c1520</color>
+    <color name="surface_card">#132030</color>
+    <color name="accent_cyan">#00f0ff</color>
+    <color name="accent_green">#00ffaa</color>
+    <color name="accent_gold">#ffb830</color>
+    <color name="accent_magenta">#e040fb</color>
+    <color name="text_primary">#e2f4f8</color>
+    <color name="text_secondary">#7fa5b5</color>
+</resources>

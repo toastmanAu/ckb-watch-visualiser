@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CKB Visualisers</string>
+    <string name="menu_header">Nervos Visualisers</string>
+    <string name="menu_subtitle">Pixel Watch 3 Edition</string>
+
+    <!-- Visualiser Titles & Descriptions -->
+    <string name="vis_cell_lab_title">Cell Laboratory</string>
+    <string name="vis_cell_lab_desc">Microscopic UTXO organisms absorbed into the Liquid of Knowledge</string>
+    <string name="vis_cell_lab_badge">FLAGSHIP</string>
+
+    <string name="vis_fiber_title">Fiber Network</string>
+    <string name="vis_fiber_desc">P2P lightning payment channels &amp; peer topologies</string>
+    <string name="vis_fiber_badge">COMING SOON</string>
+
+    <string name="vis_mempool_title">Mempool Collider</string>
+    <string name="vis_mempool_desc">High-energy pending transactions particle accelerator</string>
+    <string name="vis_mempool_badge">COMING SOON</string>
+
+    <string name="vis_clock_title">Epoch Celestial Clock</string>
+    <string name="vis_clock_desc">Astronomical halving cycles &amp; difficulty epochs</string>
+    <string name="vis_clock_badge">COMING SOON</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Node &amp; Settings</string>
+    <string name="settings_rpc_label">CKB RPC Endpoint</string>
+    <string name="settings_haptics">Haptic Feedback</string>
+    <string name="settings_keep_screen_on">Keep Screen On</string>
+    <string name="settings_rotary_sensitivity">Crown Sensitivity</string>
+</resources>
