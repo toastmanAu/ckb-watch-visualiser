@@ -506,8 +506,13 @@
       opacity: 0.9;
     }
   </style>
-  <!-- Three.js from CDN with fallback -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Three.js (Local bundle with CDN fallback) -->
+  <script src="three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\\/script>');
+    }
+  </script>
 </head>
 <body class="watch-screen">
   <!-- 3D Canvas -->

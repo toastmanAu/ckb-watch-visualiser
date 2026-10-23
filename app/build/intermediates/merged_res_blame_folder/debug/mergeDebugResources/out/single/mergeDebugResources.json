@@ -1,0 +1,30 @@
+[
+    {
+        "merged": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-debug-60:/drawable_ic_mempool.xml.flat",
+        "source": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-main-62:/drawable/ic_mempool.xml"
+    },
+    {
+        "merged": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-debug-60:/drawable_ic_cell_lab.xml.flat",
+        "source": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-main-62:/drawable/ic_cell_lab.xml"
+    },
+    {
+        "merged": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-debug-60:/drawable_ic_settings.xml.flat",
+        "source": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-main-62:/drawable/ic_settings.xml"
+    },
+    {
+        "merged": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-debug-60:/drawable_ic_fiber.xml.flat",
+        "source": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-main-62:/drawable/ic_fiber.xml"
+    },
+    {
+        "merged": "network.nervos.watchvisualiser.app-debug-60:/drawable_ic_bonsai.xml.flat",
+        "source": "network.nervos.watchvisualiser.app-main-62:/drawable/ic_bonsai.xml"
+    },
+    {
+        "merged": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-debug-60:/mipmap_ic_launcher.xml.flat",
+        "source": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-main-62:/mipmap/ic_launcher.xml"
+    },
+    {
+        "merged": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-debug-60:/drawable_ic_clock.xml.flat",
+        "source": "/home/phill/.gradle/daemon/8.10.2/network.nervos.watchvisualiser.app-main-62:/drawable/ic_clock.xml"
+    }
+]

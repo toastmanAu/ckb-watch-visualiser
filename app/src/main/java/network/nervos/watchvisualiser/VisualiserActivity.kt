@@ -1,122 +1,81 @@
 package network.nervos.watchvisualiser
 
-import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.webkit.ConsoleMessage
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
-import network.nervos.watchvisualiser.bridge.WatchBridge
+import androidx.lifecycle.lifecycleScope
 import network.nervos.watchvisualiser.data.AppPreferences
+import network.nervos.watchvisualiser.data.CkbRpcClient
+import network.nervos.watchvisualiser.ui.BonsaiVisualiserView
+import network.nervos.watchvisualiser.ui.LabVisualiserView
 
 /**
- * Activity housing the WebGL Three.js visualizer on Wear OS (Pixel Watch 3).
- * Intercepts digital crown rotary encoder events and bridges them to the 3D scene.
+ * Native Wear OS Activity housing the visualizer selected by the user.
+ * Seamlessly routes to LabVisualiserView or BonsaiVisualiserView with full
+ * Pixel Watch 3 Digital Crown / Rotary Encoder support and live CKB RPC streaming.
  */
 class VisualiserActivity : ComponentActivity() {
 
-    private lateinit var webView: WebView
+    private var labView: LabVisualiserView? = null
+    private var bonsaiView: BonsaiVisualiserView? = null
     private lateinit var preferences: AppPreferences
-    private lateinit var watchBridge: WatchBridge
+    private lateinit var rpcClient: CkbRpcClient
 
-    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         preferences = AppPreferences(this)
-        watchBridge = WatchBridge(this, preferences)
 
         if (preferences.keepScreenOn) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
 
-        webView = WebView(this).apply {
-            layoutParams = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT
-            )
-            setBackgroundColor(0xFF03070D.toInt())
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        val visId = intent.getStringExtra(EXTRA_VISUALISER_ID) ?: "ckb_cell_lab"
+
+        if (visId == "ckb_bonsai") {
+            bonsaiView = BonsaiVisualiserView(this)
+            setContentView(bonsaiView)
+        } else {
+            labView = LabVisualiserView(this)
+            setContentView(labView)
         }
 
-        setContentView(webView)
-
-        configureWebView()
-
-        val assetPath = intent.getStringExtra(EXTRA_ASSET_PATH)
-            ?: "file:///android_asset/visualisers/ckb-cell-lab/index.html"
-
-        webView.loadUrl(assetPath)
-    }
-
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun configureWebView() {
-        val settings = webView.settings
-        settings.javaScriptEnabled = true
-        settings.domStorageEnabled = true
-        settings.databaseEnabled = true
-        settings.allowFileAccess = true
-        settings.allowContentAccess = true
-        settings.loadsImagesAutomatically = true
-        settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-        settings.useWideViewPort = true
-        settings.loadWithOverviewMode = true
-        settings.setSupportZoom(true)
-        settings.builtInZoomControls = false
-        settings.displayZoomControls = false
-
-        // Bridge native watch capabilities to Three.js environment
-        webView.addJavascriptInterface(watchBridge, "WatchBridge")
-
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                return super.onConsoleMessage(consoleMessage)
+        // Connect to live CKB Blockchain via native RPC client
+        rpcClient = CkbRpcClient(preferences.ckbRpcUrl, lifecycleScope).apply {
+            onBlockDetected = { blockData ->
+                labView?.onBlockArrived(blockData)
+                bonsaiView?.onBlockArrived(blockData)
             }
-        }
-
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                return false
-            }
+            start()
         }
     }
 
     /**
-     * Intercept Pixel Watch 3 Digital Crown / Rotary Encoder inputs
-     * and transmit them to the 3D Three.js camera controller.
+     * Intercept Pixel Watch 3 physical digital crown / rotary encoder
+     * to orbit the camera smoothly around the 3D scene.
      */
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
         if (event.action == MotionEvent.ACTION_SCROLL &&
             event.isFromSource(InputDevice.SOURCE_ROTARY_ENCODER)
         ) {
-            val axisValue = -event.getAxisValue(MotionEvent.AXIS_SCROLL)
-            val delta = axisValue * preferences.rotarySensitivity
-
-            // Subtle haptic tick on rotary step
-            watchBridge.vibrate("tick")
-
-            // Dispatch custom event to WebGL visualizer
-            val js = "window.dispatchEvent(new CustomEvent('wearRotary', { detail: { delta: $delta } }));"
-            webView.evaluateJavascript(js, null)
+            val delta = -event.getAxisValue(MotionEvent.AXIS_SCROLL) * preferences.rotarySensitivity
+            labView?.handleRotaryScroll(delta)
+            bonsaiView?.handleRotaryScroll(delta)
             return true
         }
         return super.onGenericMotionEvent(event)
     }
 
     override fun onDestroy() {
-        webView.destroy()
+        rpcClient.stop()
         super.onDestroy()
     }
 
     companion object {
+        const val EXTRA_VISUALISER_ID = "extra_visualiser_id"
         const val EXTRA_ASSET_PATH = "extra_asset_path"
         const val EXTRA_VISUALISER_TITLE = "extra_visualiser_title"
     }

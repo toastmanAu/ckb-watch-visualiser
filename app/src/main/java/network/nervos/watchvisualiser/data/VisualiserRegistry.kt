@@ -20,6 +20,15 @@ object VisualiserRegistry {
             isAvailable = true
         ),
         VisualiserInfo(
+            id = "ckb_bonsai",
+            title = "Maple Bonsai",
+            subtitle = "New CKB Cells falling as autumn leaves from a Japanese maple bonsai",
+            badge = "ACTIVE",
+            iconRes = R.drawable.ic_bonsai,
+            assetPath = "file:///android_asset/visualisers/ckb-bonsai/index.html",
+            isAvailable = true
+        ),
+        VisualiserInfo(
             id = "fiber_network",
             title = "Fiber Network",
             subtitle = "Lightning-fast P2P state channels & peer routing topologies",

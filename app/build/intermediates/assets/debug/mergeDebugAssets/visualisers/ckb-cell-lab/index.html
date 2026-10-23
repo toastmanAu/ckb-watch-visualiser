@@ -1,0 +1,2164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>CKB Cell Laboratory — Nervos Blockchain Visualizer</title>
+  <style>
+    :root {
+      --bg-color: #03070d;
+      --card-bg: rgba(7, 18, 30, 0.82);
+      --card-border: rgba(64, 180, 220, 0.28);
+      --accent-cyan: #00f0ff;
+      --accent-cyan-glow: rgba(0, 240, 255, 0.4);
+      --accent-green: #00ffaa;
+      --accent-gold: #ffb830;
+      --accent-magenta: #e040fb;
+      --text-main: #e2f4f8;
+      --text-muted: #7fa5b5;
+      --danger: #ff4757;
+      --font-mono: 'SF Mono', 'Roboto Mono', 'Cascadia Code', 'Consolas', monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-color);
+      font-family: var(--font-sans);
+      color: var(--text-main);
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+      touch-action: none;
+    }
+
+    /* UI Overlay Layer */
+    .hud-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: env(safe-area-inset-top, 14px) env(safe-area-inset-right, 14px) env(safe-area-inset-bottom, 14px) env(safe-area-inset-left, 14px);
+    }
+
+    /* Interactive Elements inside HUD */
+    .interactive {
+      pointer-events: auto;
+    }
+
+    /* Header Bar */
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .badge-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 14px;
+      padding: 8px 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #00ffaa;
+      box-shadow: 0 0 8px #00ffaa;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    .status-dot.connecting { background: var(--accent-gold); box-shadow: 0 0 8px var(--accent-gold); }
+    .status-dot.error { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+    .status-dot.reconnecting { background: var(--accent-magenta); box-shadow: 0 0 8px var(--accent-magenta); }
+
+    .title-text {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+    }
+
+    .block-info {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+    }
+
+    .block-label {
+      font-size: 9px;
+      color: var(--text-muted);
+      font-weight: normal;
+    }
+
+    .quick-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .hud-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--text-main);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .hud-btn:active {
+      transform: scale(0.92);
+      border-color: var(--accent-cyan);
+    }
+    .hud-btn svg {
+      width: 17px;
+      height: 17px;
+      fill: currentColor;
+    }
+
+    /* Center Alert / Announcement */
+    .announcement-banner {
+      align-self: center;
+      background: rgba(3, 15, 27, 0.88);
+      border: 1px solid var(--accent-cyan);
+      box-shadow: 0 0 24px rgba(0, 240, 255, 0.25);
+      border-radius: 20px;
+      padding: 10px 20px;
+      text-align: center;
+      transition: all 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      transform: translateY(-10px) scale(0.95);
+      opacity: 0;
+      pointer-events: none;
+      max-width: 90%;
+    }
+    .announcement-banner.visible {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+    .announcement-title {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      margin-bottom: 2px;
+    }
+    .announcement-main {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      font-family: var(--font-mono);
+    }
+    .announcement-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Bottom Status Strip */
+    .footer-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .cells-counter-pill {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+    .counter-value {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent-green);
+    }
+    .counter-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .beaker-status-pill {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 6px 12px;
+      font-size: 9px;
+      font-family: var(--font-mono);
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    /* Modal / Drawer for Specimen & Settings */
+    .modal-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .specimen-card {
+      background: #091724;
+      border: 1px solid var(--accent-cyan);
+      box-shadow: 0 0 30px rgba(0, 240, 255, 0.25);
+      border-radius: 18px;
+      padding: 16px;
+      width: 100%;
+      max-width: 320px;
+      font-family: var(--font-mono);
+      transform: scale(0.92);
+      transition: transform 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    }
+    .modal-backdrop.open .specimen-card {
+      transform: scale(1);
+    }
+
+    .specimen-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    .specimen-title {
+      font-size: 11px;
+      color: var(--accent-cyan);
+      letter-spacing: 1px;
+      font-weight: 700;
+    }
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 2px 6px;
+    }
+
+    .specimen-row {
+      margin-bottom: 8px;
+    }
+    .specimen-label {
+      font-size: 9px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .specimen-val {
+      font-size: 12px;
+      color: #fff;
+      word-break: break-all;
+    }
+    .specimen-val.highlight {
+      color: var(--accent-green);
+      font-weight: 700;
+    }
+
+    .copy-btn {
+      width: 100%;
+      margin-top: 12px;
+      padding: 8px;
+      background: rgba(0, 240, 255, 0.12);
+      border: 1px solid var(--accent-cyan);
+      border-radius: 10px;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .copy-btn:active {
+      background: rgba(0, 240, 255, 0.25);
+    }
+
+    /* Settings Modal Styles */
+    .settings-group {
+      margin-bottom: 12px;
+    }
+    .settings-input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 8px;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      margin-top: 4px;
+    }
+    .settings-input:focus {
+      outline: none;
+      border-color: var(--accent-cyan);
+    }
+    .action-btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .action-btn {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      cursor: pointer;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .action-btn.primary {
+      background: var(--accent-cyan);
+      border: 1px solid var(--accent-cyan);
+      color: #03070d;
+    }
+    .action-btn.secondary {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+    }
+
+    /* ====================================================
+       CIRCULAR WEAR OS / PIXEL WATCH 3 SPECIFIC ADAPTATION
+       ==================================================== */
+    @media (shape: round), screen and (max-aspect-ratio: 1/1) and (max-width: 480px) {
+      body.watch-screen .hud-overlay {
+        padding: 24px 16px 20px 16px;
+      }
+
+      body.watch-screen .header-bar {
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        margin-top: 4px;
+      }
+
+      body.watch-screen .badge-panel {
+        border-radius: 20px;
+        padding: 4px 14px;
+        align-items: center;
+        background: rgba(7, 18, 30, 0.9);
+      }
+
+      body.watch-screen .title-text {
+        font-size: 9px;
+      }
+
+      body.watch-screen .block-info {
+        font-size: 11px;
+      }
+
+      body.watch-screen .quick-actions {
+        position: absolute;
+        bottom: 22px;
+        right: 18px;
+      }
+
+      body.watch-screen .hud-btn {
+        width: 32px;
+        height: 32px;
+      }
+
+      body.watch-screen .hud-btn svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      body.watch-screen .footer-bar {
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        margin-bottom: 6px;
+        gap: 4px;
+      }
+
+      body.watch-screen .cells-counter-pill {
+        padding: 4px 12px;
+      }
+
+      body.watch-screen .counter-value {
+        font-size: 13px;
+      }
+
+      body.watch-screen .counter-label {
+        font-size: 8px;
+      }
+
+      body.watch-screen .beaker-status-pill {
+        display: none;
+      }
+
+      body.watch-screen .announcement-banner {
+        padding: 6px 14px;
+        border-radius: 14px;
+      }
+
+      body.watch-screen .announcement-main {
+        font-size: 13px;
+      }
+
+      body.watch-screen .specimen-card {
+        max-width: 270px;
+        padding: 12px;
+        border-radius: 16px;
+      }
+
+      body.watch-screen .specimen-val {
+        font-size: 10px;
+      }
+    }
+
+    /* Rotary Crown Wheel Hint Indicator (Briefly shown on crown interaction) */
+    .crown-feedback-indicator {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 38px;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-cyan);
+      border-radius: 2px;
+      opacity: 0;
+      transition: opacity 0.2s, height 0.15s;
+      pointer-events: none;
+      z-index: 50;
+    }
+    .crown-feedback-indicator.active {
+      opacity: 0.9;
+    }
+  </style>
+  <!-- Three.js (Local bundle with CDN fallback) -->
+  <script src="three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\\/script>');
+    }
+  </script>
+</head>
+<body class="watch-screen">
+  <!-- 3D Canvas -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- Crown Feedback Indicator for Pixel Watch 3 -->
+  <div id="crownIndicator" class="crown-feedback-indicator"></div>
+
+  <!-- HUD Overlay -->
+  <div class="hud-overlay">
+    <!-- Top Bar: Block Header & Status -->
+    <header class="header-bar">
+      <div class="badge-panel interactive" id="statusBadge" title="Click to view network details">
+        <div class="title-row">
+          <span class="status-dot connecting" id="statusDot"></span>
+          <span class="title-text">CKB CELL LAB</span>
+        </div>
+        <div class="block-info">
+          <span class="block-label">TIP</span>
+          <span id="blockNumber">#------</span>
+        </div>
+      </div>
+
+      <div class="quick-actions interactive">
+        <button class="hud-btn" id="audioToggleBtn" title="Toggle Lab Sound" aria-label="Toggle Sound">
+          <svg id="soundIconOff" viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+          <svg id="soundIconOn" style="display:none;" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        </button>
+        <button class="hud-btn" id="settingsBtn" title="RPC & Node Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Center Event / Choreography Announcement -->
+    <div class="announcement-banner" id="announcementBanner">
+      <div class="announcement-title" id="announcementTitle">NEW BLOCK DETECTED</div>
+      <div class="announcement-main" id="announcementMain">37 NEW CELLS</div>
+      <div class="announcement-sub" id="announcementSub">MATERIALIZING ORGANISMS</div>
+    </div>
+
+    <!-- Bottom Bar: Live Metrics & Laboratory Status -->
+    <footer class="footer-bar">
+      <div class="cells-counter-pill interactive" id="counterPill">
+        <span class="counter-label">ORGANISMS</span>
+        <span class="counter-value" id="cellCounter">0</span>
+      </div>
+
+      <div class="beaker-status-pill" id="beakerStatus">
+        LIQUID OF KNOWLEDGE : STABLE
+      </div>
+    </footer>
+  </div>
+
+  <!-- Specimen Inspection Modal -->
+  <div class="modal-backdrop" id="specimenModal">
+    <div class="specimen-card">
+      <div class="specimen-header">
+        <span class="specimen-title">CELL SPECIMEN</span>
+        <button class="close-btn" id="closeSpecimenBtn">&times;</button>
+      </div>
+      <div class="specimen-row">
+        <div class="specimen-label">TRANSACTION HASH</div>
+        <div class="specimen-val" id="specimenTx">0x----</div>
+      </div>
+      <div class="specimen-row">
+        <div class="specimen-label">OUTPUT INDEX</div>
+        <div class="specimen-val" id="specimenIndex">#0</div>
+      </div>
+      <div class="specimen-row">
+        <div class="specimen-label">CAPACITY</div>
+        <div class="specimen-val highlight" id="specimenCapacity">0 CKB</div>
+      </div>
+      <div class="specimen-row">
+        <div class="specimen-label">TYPE SCRIPT</div>
+        <div class="specimen-val" id="specimenType">NONE</div>
+      </div>
+      <div class="specimen-row">
+        <div class="specimen-label">DATA PAYLOAD</div>
+        <div class="specimen-val" id="specimenData">0 BYTES</div>
+      </div>
+      <button class="copy-btn" id="copyOutpointBtn">COPY OUTPOINT</button>
+    </div>
+  </div>
+
+  <!-- Settings / Connection Modal -->
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="specimen-card">
+      <div class="specimen-header">
+        <span class="specimen-title">NODE SETTINGS</span>
+        <button class="close-btn" id="closeSettingsBtn">&times;</button>
+      </div>
+      <div class="settings-group">
+        <div class="specimen-label">CKB HTTP RPC URL</div>
+        <input type="text" class="settings-input" id="rpcInput" value="https://mainnet.ckb.dev/">
+      </div>
+      <div class="settings-group">
+        <div class="specimen-label">WEBSOCKET RPC URL (OPTIONAL)</div>
+        <input type="text" class="settings-input" id="wsInput" placeholder="wss://... (auto-derived if blank)">
+      </div>
+      <div class="action-btn-row">
+        <button class="action-btn secondary" id="simulateBlockBtn">TEST BLOCK</button>
+        <button class="action-btn primary" id="saveSettingsBtn">SAVE &amp; CONNECT</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       CKB CELL LABORATORY — CORE APPLICATION LOGIC
+       ========================================================================== */
+
+    // Check if running on Wear OS / Round watch
+    const isWatch = (window.innerWidth <= 480 && window.innerHeight <= 480) ||
+                    window.matchMedia('(shape: round)').matches ||
+                    (window.WatchBridge && window.WatchBridge.isWatchRound && window.WatchBridge.isWatchRound());
+    if (isWatch) {
+      document.body.classList.add('watch-screen');
+    }
+
+    // --------------------------------------------------------------------------
+    // 1. CONFIG & AUDIO MANAGER
+    // --------------------------------------------------------------------------
+    const CONFIG = {
+      defaultHttpRpc: 'https://mainnet.ckb.dev/',
+      fallbackHttpRpc: 'https://mainnet.ckbapp.dev/',
+      pollIntervalMs: 7000,
+      liquidCapacity: 0.6,
+      maxVisibleLabels: 16
+    };
+
+    class AudioManager {
+      constructor() {
+        this.ctx = null;
+        this.enabled = false;
+        this.ambienceNode = null;
+      }
+
+      init() {
+        if (this.ctx) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          this.ctx = new AudioContext();
+        }
+      }
+
+      toggle() {
+        this.init();
+        if (!this.ctx) return false;
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+        this.enabled = !this.enabled;
+        if (this.enabled) {
+          this.startLabAmbience();
+        } else {
+          this.stopLabAmbience();
+        }
+        return this.enabled;
+      }
+
+      startLabAmbience() {
+        if (!this.ctx || !this.enabled) return;
+        try {
+          // Subtle low-frequency scientific hum
+          const osc1 = this.ctx.createOscillator();
+          const osc2 = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          const filter = this.ctx.createBiquadFilter();
+
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(55, this.ctx.currentTime); // A1 note
+          osc2.type = 'triangle';
+          osc2.frequency.setValueAtTime(110, this.ctx.currentTime);
+
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(240, this.ctx.currentTime);
+
+          gain.gain.setValueAtTime(0.018, this.ctx.currentTime);
+
+          osc1.connect(filter);
+          osc2.connect(filter);
+          filter.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc1.start();
+          osc2.start();
+
+          this.ambienceNode = { osc1, osc2, gain };
+        } catch (e) {
+          console.warn('Audio ambience failed:', e);
+        }
+      }
+
+      stopLabAmbience() {
+        if (this.ambienceNode) {
+          try {
+            this.ambienceNode.osc1.stop();
+            this.ambienceNode.osc2.stop();
+          } catch (e) {}
+          this.ambienceNode = null;
+        }
+      }
+
+      playBlockChime() {
+        if (!this.ctx || !this.enabled) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, now); // A5
+          osc.frequency.exponentialRampToValueAtTime(1320, now + 0.15); // E6
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.6);
+        } catch (e) {}
+      }
+
+      playAbsorptionFizz() {
+        if (!this.ctx || !this.enabled) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.exponentialRampToValueAtTime(120, now + 0.4);
+          gain.gain.setValueAtTime(0.05, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.4);
+        } catch (e) {}
+      }
+    }
+
+    const audioMgr = new AudioManager();
+
+    // --------------------------------------------------------------------------
+    // 2. CKB RPC CLIENT & BLOCK MONITOR
+    // --------------------------------------------------------------------------
+    class CKBRpc {
+      constructor() {
+        this.httpUrl = localStorage.getItem('ckb_http_rpc') || CONFIG.defaultHttpRpc;
+        this.wsUrl = localStorage.getItem('ckb_ws_rpc') || '';
+        this.ws = null;
+        this.pollTimer = null;
+        this.lastProcessedBlockHash = null;
+        this.status = 'CONNECTING'; // CONNECTING, LIVE, RECONNECTING, ERROR, OFFLINE
+        this.onBlockCallback = null;
+        this.onStatusCallback = null;
+        this.isProcessingBlock = false;
+        this.failureCount = 0;
+      }
+
+      setEndpoints(httpUrl, wsUrl) {
+        this.httpUrl = httpUrl.trim() || CONFIG.defaultHttpRpc;
+        this.wsUrl = wsUrl.trim();
+        localStorage.setItem('ckb_http_rpc', this.httpUrl);
+        localStorage.setItem('ckb_ws_rpc', this.wsUrl);
+        this.reconnect();
+      }
+
+      updateStatus(status, detail = '') {
+        this.status = status;
+        if (this.onStatusCallback) {
+          this.onStatusCallback(status, detail);
+        }
+      }
+
+      start(onBlock, onStatus) {
+        this.onBlockCallback = onBlock;
+        this.onStatusCallback = onStatus;
+        this.connect();
+      }
+
+      reconnect() {
+        this.stop();
+        this.updateStatus('RECONNECTING');
+        this.connect();
+      }
+
+      stop() {
+        if (this.pollTimer) {
+          clearInterval(this.pollTimer);
+          this.pollTimer = null;
+        }
+        if (this.ws) {
+          try { this.ws.close(); } catch (e) {}
+          this.ws = null;
+        }
+      }
+
+      async connect() {
+        this.updateStatus('CONNECTING');
+        // Try getting initial tip first
+        try {
+          const tip = await this.getTipHeader();
+          if (tip && tip.hash) {
+            this.lastProcessedBlockHash = tip.hash;
+            const tipNum = parseInt(tip.number, 16);
+            this.updateStatus('LIVE', `Tip #${tipNum.toLocaleString()}`);
+            // Show initial startup quiet state
+            if (this.onBlockCallback) {
+              this.onBlockCallback(null, tipNum);
+            }
+            this.failureCount = 0;
+          }
+        } catch (err) {
+          console.warn('Initial tip fetch failed, attempting fallback or polling:', err);
+          this.failureCount++;
+          // Fallback endpoint if primary failed
+          if (this.httpUrl === CONFIG.defaultHttpRpc && this.failureCount < 2) {
+            this.httpUrl = CONFIG.fallbackHttpRpc;
+            return this.connect();
+          }
+          this.updateStatus('ERROR', 'RPC Unreachable');
+        }
+
+        // Try WebSocket if specified, else start HTTP Polling
+        if (this.wsUrl) {
+          this.setupWebSocket();
+        } else {
+          this.startHttpPolling();
+        }
+      }
+
+      setupWebSocket() {
+        try {
+          this.ws = new WebSocket(this.wsUrl);
+          this.ws.onopen = () => {
+            this.updateStatus('LIVE', 'WS Subscribed');
+            const subMsg = {
+              id: 1,
+              jsonrpc: '2.0',
+              method: 'subscribe',
+              params: ['new_tip_header']
+            };
+            this.ws.send(JSON.stringify(subMsg));
+          };
+
+          this.ws.onmessage = async (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.method === 'subscribe' && data.params && data.params.result) {
+                const header = data.params.result;
+                await this.handleNewHeader(header);
+              }
+            } catch (e) {
+              console.error('Error parsing WS message:', e);
+            }
+          };
+
+          this.ws.onerror = (e) => {
+            console.warn('WS error, falling back to HTTP polling', e);
+            this.startHttpPolling();
+          };
+
+          this.ws.onclose = () => {
+            this.startHttpPolling();
+          };
+        } catch (e) {
+          this.startHttpPolling();
+        }
+      }
+
+      startHttpPolling() {
+        if (this.pollTimer) clearInterval(this.pollTimer);
+        this.pollTimer = setInterval(() => {
+          this.pollTip();
+        }, CONFIG.pollIntervalMs);
+      }
+
+      async rpcCall(method, params = []) {
+        const body = JSON.stringify({
+          id: Date.now(),
+          jsonrpc: '2.0',
+          method: method,
+          params: params
+        });
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+
+        try {
+          const response = await fetch(this.httpUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: body,
+            signal: controller.signal
+          });
+          clearTimeout(timeout);
+
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const json = await response.json();
+          if (json.error) throw new Error(json.error.message || 'RPC Error');
+          return json.result;
+        } catch (err) {
+          clearTimeout(timeout);
+          throw err;
+        }
+      }
+
+      async getTipHeader() {
+        return await this.rpcCall('get_tip_header', []);
+      }
+
+      async getBlock(hash) {
+        return await this.rpcCall('get_block', [hash]);
+      }
+
+      async pollTip() {
+        if (this.isProcessingBlock) return;
+        try {
+          const tip = await this.getTipHeader();
+          if (tip && tip.hash) {
+            this.updateStatus('LIVE');
+            if (tip.hash !== this.lastProcessedBlockHash) {
+              await this.handleNewHeader(tip);
+            }
+          }
+        } catch (err) {
+          this.updateStatus('ERROR', 'RPC Timeout/Error');
+        }
+      }
+
+      async handleNewHeader(header) {
+        if (!header || !header.hash) return;
+        if (header.hash === this.lastProcessedBlockHash) return;
+
+        this.isProcessingBlock = true;
+        this.lastProcessedBlockHash = header.hash;
+
+        try {
+          this.updateStatus('LIVE', 'Fetching block data...');
+          const block = await this.getBlock(header.hash);
+          if (block && block.transactions) {
+            const extractedCells = CellExtractor.extract(block);
+            const blockNum = parseInt(header.number, 16);
+            if (this.onBlockCallback) {
+              this.onBlockCallback({
+                blockNumber: blockNum,
+                blockHash: header.hash,
+                txCount: block.transactions.length,
+                cells: extractedCells
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch full block:', err);
+        } finally {
+          this.isProcessingBlock = false;
+        }
+      }
+    }
+
+    // --------------------------------------------------------------------------
+    // 3. CELL EXTRACTOR (Strict CKB Cell Model Invariant)
+    // --------------------------------------------------------------------------
+    class CellExtractor {
+      static extract(block) {
+        const cells = [];
+        if (!block || !Array.isArray(block.transactions)) return cells;
+
+        for (const tx of block.transactions) {
+          if (!Array.isArray(tx.outputs)) continue;
+
+          for (let i = 0; i < tx.outputs.length; i++) {
+            const output = tx.outputs[i];
+            const outputData = (tx.outputs_data && tx.outputs_data[i]) ? tx.outputs_data[i] : '0x';
+
+            cells.push({
+              txHash: tx.hash,
+              outputIndex: i,
+              outPoint: `${tx.hash}:${i}`,
+              capacity: output.capacity, // hex shannons
+              lock: output.lock,
+              type: output.type || null,
+              outputData: outputData
+            });
+          }
+        }
+        return cells;
+      }
+
+      static formatCapacity(shannonsHex) {
+        try {
+          const shannons = BigInt(shannonsHex);
+          const divisor = 100000000n; // 1 CKB = 10^8 Shannons
+          const ckbWhole = shannons / divisor;
+          const remainder = shannons % divisor;
+          if (remainder === 0n) {
+            return `${ckbWhole.toLocaleString()} CKB`;
+          }
+          const decStr = remainder.toString().padStart(8, '0').slice(0, 4).replace(/0+$/, '');
+          return `${ckbWhole.toLocaleString()}.${decStr} CKB`;
+        } catch (e) {
+          return `${shannonsHex} Shannons`;
+        }
+      }
+
+      static getDataByteLength(hexData) {
+        if (!hexData || hexData === '0x') return 0;
+        return Math.max(0, (hexData.length - 2) / 2);
+      }
+    }
+
+    // --------------------------------------------------------------------------
+    // 4. PROCEDURAL 3D LABORATORY SCENE & BEAKER
+    // --------------------------------------------------------------------------
+    class LabScene {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.beaker = null;
+        this.liquid = null;
+        this.cellBatch = null;
+
+        // Interaction state
+        this.isInteracting = false;
+        this.lastPointerX = 0;
+        this.lastPointerY = 0;
+        this.cameraRadius = 14;
+        this.cameraTheta = Math.PI * 0.25;
+        this.cameraPhi = Math.PI * 0.35;
+        this.targetCameraRadius = 14;
+        this.pinchDist = 0;
+        this.autoRotateSpeed = 0.0018;
+        this.lastInteractionTime = Date.now();
+        this.raycaster = new THREE.Raycaster();
+        this.pointer = new THREE.Vector2();
+
+        this.init();
+      }
+
+      init() {
+        // Scene setup
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x020509);
+        this.scene.fog = new THREE.FogExp2(0x020509, 0.035);
+
+        // Camera setup
+        const aspect = window.innerWidth / window.innerHeight;
+        this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 100);
+        this.updateCameraPosition();
+
+        // Renderer
+        this.renderer = new THREE.WebGLRenderer({
+          canvas: this.canvas,
+          antialias: true,
+          powerPreference: 'high-performance'
+        });
+        const dpr = Math.min(window.devicePixelRatio || 1, isWatch ? 1.5 : 2.0);
+        this.renderer.setPixelRatio(dpr);
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.15;
+
+        // Build Environment
+        this.setupLights();
+        this.buildLabEnvironment();
+        this.buildBeaker();
+        this.buildLiquidOfKnowledge();
+
+        // Event Listeners
+        this.bindEvents();
+      }
+
+      setupLights() {
+        // Ambient Light (subtle clinical blue)
+        const ambientLight = new THREE.AmbientLight(0x0a1a2e, 1.2);
+        this.scene.add(ambientLight);
+
+        // Key light: Laboratory ceiling luminaire
+        const keyLight = new THREE.DirectionalLight(0xdcf4ff, 1.4);
+        keyLight.position.set(8, 18, 10);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 1024;
+        keyLight.shadow.mapSize.height = 1024;
+        keyLight.shadow.bias = -0.0005;
+        this.scene.add(keyLight);
+
+        // Fill light: Soft warm amber counter-illumination
+        const fillLight = new THREE.PointLight(0xffb86c, 0.6, 25);
+        fillLight.position.set(-8, 6, -6);
+        this.scene.add(fillLight);
+
+        // Specimen focal spotlight directed into the beaker
+        this.beakerSpot = new THREE.SpotLight(0x00f0ff, 2.4, 20, Math.PI / 4, 0.5, 1.0);
+        this.beakerSpot.position.set(0, 10, 0);
+        this.beakerSpot.target.position.set(0, 1.5, 0);
+        this.scene.add(this.beakerSpot);
+        this.scene.add(this.beakerSpot.target);
+
+        // Liquid internal luminescence point light
+        this.liquidLight = new THREE.PointLight(0x00e5ff, 1.8, 8);
+        this.liquidLight.position.set(0, 2, 0);
+        this.scene.add(this.liquidLight);
+      }
+
+      buildLabEnvironment() {
+        // Laboratory Bench surface
+        const benchGeo = new THREE.BoxGeometry(32, 1.2, 24);
+        const benchMat = new THREE.MeshStandardMaterial({
+          color: 0x07111c,
+          roughness: 0.35,
+          metalness: 0.2
+        });
+        const bench = new THREE.Mesh(benchGeo, benchMat);
+        bench.position.set(0, -0.6, 0);
+        bench.receiveShadow = true;
+        this.scene.add(bench);
+
+        // Bench Metallic Bevel Trim
+        const trimGeo = new THREE.BoxGeometry(32.4, 0.2, 0.2);
+        const trimMat = new THREE.MeshStandardMaterial({ color: 0x3a5369, metalness: 0.8, roughness: 0.2 });
+        const trim = new THREE.Mesh(trimGeo, trimMat);
+        trim.position.set(0, -0.05, 12.05);
+        this.scene.add(trim);
+
+        // Background Scientific Instruments (Subtle & Non-distracting)
+        this.buildMicroscope(new THREE.Vector3(-4.5, 0, -2.5));
+        this.buildTestTubeRack(new THREE.Vector3(4.2, 0, -1.8));
+        this.buildReagentBottles(new THREE.Vector3(5.0, 0, 1.8));
+        this.buildElectronicMonitor(new THREE.Vector3(-4.8, 0, 2.0));
+      }
+
+      buildMicroscope(pos) {
+        const group = new THREE.Group();
+        const metalMat = new THREE.MeshStandardMaterial({ color: 0x162534, metalness: 0.85, roughness: 0.25 });
+        const chromeMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.95, roughness: 0.1 });
+
+        // Base horseshoe
+        const base = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.4, 2.0), metalMat);
+        base.position.y = 0.2;
+        group.add(base);
+
+        // Arm
+        const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 3.2, 16), metalMat);
+        arm.position.set(0, 1.8, -0.6);
+        arm.rotation.x = 0.15;
+        group.add(arm);
+
+        // Stage
+        const stage = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.15, 1.5), metalMat);
+        stage.position.set(0, 1.5, 0.2);
+        group.add(stage);
+
+        // Objective lens turret
+        const turret = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.4, 16), chromeMat);
+        turret.position.set(0, 2.6, 0.2);
+        group.add(turret);
+
+        // Eyepiece tube
+        const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.4, 16), chromeMat);
+        tube.position.set(0, 3.4, -0.2);
+        tube.rotation.x = -0.4;
+        group.add(tube);
+
+        group.position.copy(pos);
+        group.scale.set(0.85, 0.85, 0.85);
+        this.scene.add(group);
+      }
+
+      buildTestTubeRack(pos) {
+        const group = new THREE.Group();
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x182a3a, roughness: 0.5 });
+        const glassMat = new THREE.MeshPhysicalMaterial({
+          color: 0xffffff,
+          transmission: 0.92,
+          roughness: 0.05,
+          ior: 1.5,
+          transparent: true
+        });
+
+        // Rack frame
+        const rackBase = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.15, 0.9), woodMat);
+        rackBase.position.y = 0.08;
+        group.add(rackBase);
+
+        const rackTop = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.12, 0.9), woodMat);
+        rackTop.position.y = 1.6;
+        group.add(rackTop);
+
+        // Test tubes with glowing liquids
+        const liquidColors = [0x00f0ff, 0x00ffaa, 0xff00bb, 0xffaa00];
+        for (let i = 0; i < 4; i++) {
+          const tubeGroup = new THREE.Group();
+          const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 2.2, 16), glassMat);
+          tube.position.y = 1.1;
+          tubeGroup.add(tube);
+
+          // Liquid column
+          const liqMat = new THREE.MeshStandardMaterial({
+            color: liquidColors[i],
+            emissive: liquidColors[i],
+            emissiveIntensity: 0.4,
+            transparent: true,
+            opacity: 0.85
+          });
+          const liq = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 1.2, 16), liqMat);
+          liq.position.y = 0.65;
+          tubeGroup.add(liq);
+
+          tubeGroup.position.set(-1.05 + i * 0.7, 0, 0);
+          group.add(tubeGroup);
+        }
+
+        group.position.copy(pos);
+        this.scene.add(group);
+      }
+
+      buildReagentBottles(pos) {
+        const group = new THREE.Group();
+        const amberGlassMat = new THREE.MeshPhysicalMaterial({
+          color: 0x8a4b08,
+          transmission: 0.75,
+          roughness: 0.1,
+          ior: 1.52,
+          transparent: true
+        });
+
+        const bottle1 = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 20), amberGlassMat);
+        bottle1.position.set(0, 0.8, 0);
+        group.add(bottle1);
+
+        const bottle2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 1.2, 18), amberGlassMat);
+        bottle2.position.set(0.9, 0.6, 0.4);
+        group.add(bottle2);
+
+        group.position.copy(pos);
+        this.scene.add(group);
+      }
+
+      buildElectronicMonitor(pos) {
+        const group = new THREE.Group();
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0d1824, roughness: 0.3 });
+        const screenMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+
+        const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.5, 1.2), bodyMat);
+        body.position.y = 0.75;
+        group.add(body);
+
+        // Screen bezel with simulated waveform lines
+        const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.1), screenMat);
+        screen.position.set(0, 0.75, 0.61);
+        group.add(screen);
+
+        group.position.copy(pos);
+        group.rotation.y = Math.PI * 0.2;
+        this.scene.add(group);
+      }
+
+      buildBeaker() {
+        this.beakerGroup = new THREE.Group();
+
+        // High quality physical glass material
+        const glassMaterial = new THREE.MeshPhysicalMaterial({
+          color: 0xffffff,
+          transmission: 0.94,
+          opacity: 1.0,
+          transparent: true,
+          roughness: 0.04,
+          ior: 1.52, // Authentic soda-lime glass refraction
+          reflectivity: 0.85,
+          clearcoat: 1.0,
+          clearcoatRoughness: 0.05,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+
+        // Beaker outer cylinder geometry with rim
+        const height = 4.6;
+        const radius = 1.85;
+        const beakerGeo = new THREE.CylinderGeometry(radius, radius * 0.96, height, 48, 1, true);
+        const beakerMesh = new THREE.Mesh(beakerGeo, glassMaterial);
+        beakerMesh.position.y = height / 2;
+        this.beakerGroup.add(beakerMesh);
+
+        // Beaker bottom disc
+        const bottomGeo = new THREE.CylinderGeometry(radius * 0.96, radius * 0.96, 0.12, 48);
+        const bottomMesh = new THREE.Mesh(bottomGeo, glassMaterial);
+        bottomMesh.position.y = 0.06;
+        this.beakerGroup.add(bottomMesh);
+
+        // Beaker rounded upper rim
+        const rimGeo = new THREE.TorusGeometry(radius, 0.065, 16, 48);
+        const rimMesh = new THREE.Mesh(rimGeo, glassMaterial);
+        rimMesh.position.y = height;
+        rimMesh.rotation.x = Math.PI / 2;
+        this.beakerGroup.add(rimMesh);
+
+        // Measurement Graduations (Procedural lines on glass)
+        const lineMat = new THREE.LineBasicMaterial({ color: 0xc0e8ff, transparent: true, opacity: 0.55 });
+        for (let i = 1; i <= 4; i++) {
+          const y = (height / 5) * i;
+          const markRadius = radius + 0.01;
+          const arcAngle = Math.PI * 0.35;
+          const points = [];
+          for (let a = -arcAngle / 2; a <= arcAngle / 2; a += 0.05) {
+            points.push(new THREE.Vector3(Math.cos(a) * markRadius, y, Math.sin(a) * markRadius));
+          }
+          const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+          const lineMesh = new THREE.Line(lineGeo, lineMat);
+          this.beakerGroup.add(lineMesh);
+        }
+
+        this.beakerGroup.position.set(0, 0, 0);
+        this.scene.add(this.beakerGroup);
+        this.beaker = this.beakerGroup;
+      }
+
+      buildLiquidOfKnowledge() {
+        const height = 4.6 * CONFIG.liquidCapacity;
+        const radius = 1.85 * 0.94;
+
+        // Glowing, ethereal translucent liquid
+        const liquidMat = new THREE.MeshPhysicalMaterial({
+          color: 0x0099cc,
+          emissive: 0x003855,
+          emissiveIntensity: 0.6,
+          transmission: 0.72,
+          transparent: true,
+          roughness: 0.15,
+          ior: 1.34, // Liquid refractive index
+          depthWrite: false
+        });
+
+        const liquidGeo = new THREE.CylinderGeometry(radius, radius * 0.96, height, 48);
+        this.liquidMesh = new THREE.Mesh(liquidGeo, liquidMat);
+        this.liquidMesh.position.y = height / 2 + 0.06;
+        this.scene.add(this.liquidMesh);
+
+        // Swirling internal glowing particles suspended in the liquid
+        const particleCount = 240;
+        const pGeo = new THREE.BufferGeometry();
+        const pPos = new Float32Array(particleCount * 3);
+        const pPhase = new Float32Array(particleCount);
+
+        for (let i = 0; i < particleCount; i++) {
+          const r = Math.random() * (radius - 0.2);
+          const theta = Math.random() * Math.PI * 2;
+          const y = 0.2 + Math.random() * (height - 0.3);
+          pPos[i * 3] = Math.cos(theta) * r;
+          pPos[i * 3 + 1] = y;
+          pPos[i * 3 + 2] = Math.sin(theta) * r;
+          pPhase[i] = Math.random() * Math.PI * 2;
+        }
+
+        pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+        this.particlePhases = pPhase;
+        this.particleHeights = height;
+        this.particleRadius = radius;
+
+        const pMat = new THREE.PointsMaterial({
+          color: 0x00ffff,
+          size: 0.07,
+          transparent: true,
+          opacity: 0.8,
+          blending: THREE.AdditiveBlending
+        });
+        this.liquidParticles = new THREE.Points(pGeo, pMat);
+        this.scene.add(this.liquidParticles);
+
+        this.liquid = {
+          mesh: this.liquidMesh,
+          mat: liquidMat,
+          particles: this.liquidParticles,
+          height: height,
+          radius: radius,
+          targetGlow: 0.6,
+          glowIntensity: 0.6
+        };
+      }
+
+      pulseLiquid(boost = 1.4) {
+        if (!this.liquid) return;
+        this.liquid.targetGlow = boost;
+        this.beakerSpot.intensity = 3.5;
+        this.liquidLight.intensity = 3.0;
+      }
+
+      relaxLiquid() {
+        if (!this.liquid) return;
+        this.liquid.targetGlow = 0.6;
+      }
+
+      updateCameraPosition() {
+        this.camera.position.x = this.cameraRadius * Math.sin(this.cameraPhi) * Math.sin(this.cameraTheta);
+        this.camera.position.y = this.cameraRadius * Math.cos(this.cameraPhi);
+        this.camera.position.z = this.cameraRadius * Math.sin(this.cameraPhi) * Math.cos(this.cameraTheta);
+        this.camera.lookAt(0, 2.1, 0);
+      }
+
+      bindEvents() {
+        const dom = this.canvas;
+
+        // Pointer Drag & Orbit
+        dom.addEventListener('pointerdown', (e) => {
+          this.isInteracting = true;
+          this.lastPointerX = e.clientX;
+          this.lastPointerY = e.clientY;
+          this.lastInteractionTime = Date.now();
+        });
+
+        window.addEventListener('pointermove', (e) => {
+          if (!this.isInteracting) return;
+          const dx = e.clientX - this.lastPointerX;
+          const dy = e.clientY - this.lastPointerY;
+          this.lastPointerX = e.clientX;
+          this.lastPointerY = e.clientY;
+          this.lastInteractionTime = Date.now();
+
+          this.cameraTheta -= dx * 0.007;
+          this.cameraPhi = Math.max(0.15, Math.min(Math.PI * 0.48, this.cameraPhi - dy * 0.007));
+          this.updateCameraPosition();
+        });
+
+        window.addEventListener('pointerup', () => {
+          this.isInteracting = false;
+        });
+
+        // Wheel Zoom (Also handles Rotary Crown on Wear OS / Pixel Watch)
+        dom.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          this.lastInteractionTime = Date.now();
+          this.handleRotaryInput(e.deltaY * 0.015);
+        }, { passive: false });
+
+        // Touch Pinch Zoom for Mobile
+        dom.addEventListener('touchstart', (e) => {
+          if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            this.pinchDist = Math.hypot(dx, dy);
+          }
+        }, { passive: true });
+
+        dom.addEventListener('touchmove', (e) => {
+          if (e.touches.length === 2) {
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.hypot(dx, dy);
+            const delta = (this.pinchDist - dist) * 0.02;
+            this.pinchDist = dist;
+            this.targetCameraRadius = Math.max(7.0, Math.min(22.0, this.targetCameraRadius + delta));
+            this.lastInteractionTime = Date.now();
+          }
+        }, { passive: true });
+
+        // Cell Click / Tap Raycasting
+        dom.addEventListener('click', (e) => {
+          this.handlePointerClick(e.clientX, e.clientY);
+        });
+
+        // Custom Rotary Event from Android Wear OS Bridge
+        window.addEventListener('wearRotary', (e) => {
+          if (e.detail && typeof e.detail.delta === 'number') {
+            this.handleRotaryInput(e.detail.delta);
+          }
+        });
+
+        // Resize
+        window.addEventListener('resize', () => {
+          this.onResize();
+        });
+      }
+
+      handleRotaryInput(delta) {
+        // Pixel Watch 3 Crown feedback: smoothly orbit or zoom
+        this.cameraTheta += delta * 0.04;
+        this.updateCameraPosition();
+
+        // Flash crown indicator
+        const ind = document.getElementById('crownIndicator');
+        if (ind) {
+          ind.classList.add('active');
+          clearTimeout(this.crownTimeout);
+          this.crownTimeout = setTimeout(() => ind.classList.remove('active'), 250);
+        }
+      }
+
+      handlePointerClick(clientX, clientY) {
+        this.pointer.x = (clientX / window.innerWidth) * 2 - 1;
+        this.pointer.y = -(clientY / window.innerHeight) * 2 + 1;
+        this.raycaster.setFromCamera(this.pointer, this.camera);
+
+        if (this.cellBatch) {
+          const hit = this.cellBatch.raycast(this.raycaster);
+          if (hit) {
+            UI.showSpecimen(hit);
+          }
+        }
+      }
+
+      onResize() {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(width, height);
+      }
+
+      update(time) {
+        // Smooth camera radius zoom interpolation
+        if (Math.abs(this.targetCameraRadius - this.cameraRadius) > 0.01) {
+          this.cameraRadius += (this.targetCameraRadius - this.cameraRadius) * 0.1;
+          this.updateCameraPosition();
+        }
+
+        // Automatic slow camera orbit when inactive
+        if (!this.isInteracting && (Date.now() - this.lastInteractionTime) > 3000) {
+          this.cameraTheta += this.autoRotateSpeed;
+          this.updateCameraPosition();
+        }
+
+        // Animate Knowledge Liquid internal swirling & particles
+        if (this.liquid) {
+          this.liquid.glowIntensity += (this.liquid.targetGlow - this.liquid.glowIntensity) * 0.05;
+          this.liquid.mat.emissiveIntensity = this.liquid.glowIntensity;
+          this.beakerSpot.intensity += (2.4 - this.beakerSpot.intensity) * 0.03;
+          this.liquidLight.intensity += (1.8 - this.liquidLight.intensity) * 0.03;
+
+          // Swirl particle coordinates
+          const pPositions = this.liquid.particles.geometry.attributes.position.array;
+          const count = pPositions.length / 3;
+          for (let i = 0; i < count; i++) {
+            const idx = i * 3;
+            let x = pPositions[idx];
+            let z = pPositions[idx + 2];
+            const r = Math.hypot(x, z);
+            const currentAngle = Math.atan2(z, x);
+            const newAngle = currentAngle + 0.015 * (1.2 - r / this.liquid.radius);
+            pPositions[idx] = Math.cos(newAngle) * r;
+            pPositions[idx + 2] = Math.sin(newAngle) * r;
+            pPositions[idx + 1] += Math.sin(time * 2 + this.particlePhases[i]) * 0.0015;
+          }
+          this.liquid.particles.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // Update active cell organisms batch
+        if (this.cellBatch) {
+          this.cellBatch.update(time);
+        }
+
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
+
+    // --------------------------------------------------------------------------
+    // 5. CELL ORGANISM & BATCH MANAGEMENT (Physical & Instanced)
+    // --------------------------------------------------------------------------
+    class CellBatch {
+      constructor(scene, cells, onComplete) {
+        this.scene = scene;
+        this.cells = cells;
+        this.onComplete = onComplete;
+        this.group = new THREE.Group();
+        this.organisms = [];
+        this.state = 'MATERIALIZING'; // MATERIALIZING -> OBSERVING -> SWARMING -> ABSORBING -> DONE
+        this.startTime = Date.now();
+        this.stateStartTime = Date.now();
+        this.isInstanced = cells.length > 60;
+        this.init();
+      }
+
+      init() {
+        this.scene.add(this.group);
+        const count = this.cells.length;
+
+        // Generate individual or instanced organisms
+        if (!this.isInstanced) {
+          for (let i = 0; i < count; i++) {
+            const org = new CellOrganism(this.cells[i], i, count);
+            this.organisms.push(org);
+            this.group.add(org.mesh);
+          }
+        } else {
+          // Instanced rendering for large blocks (100+ cells)
+          this.initInstancedMesh();
+        }
+      }
+
+      initInstancedMesh() {
+        const count = this.cells.length;
+        const geom = new THREE.IcosahedronGeometry(0.35, 2);
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0x00f0ff,
+          roughness: 0.25,
+          metalness: 0.1,
+          emissive: 0x004455,
+          emissiveIntensity: 0.4
+        });
+
+        this.instancedMesh = new THREE.InstancedMesh(geom, mat, count);
+        this.dummy = new THREE.Object3D();
+        this.positions = [];
+        this.velocities = [];
+
+        for (let i = 0; i < count; i++) {
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          const r = 3.5 + Math.random() * 3.5;
+          const pos = new THREE.Vector3(
+            r * Math.sin(phi) * Math.cos(theta),
+            2.5 + (Math.random() - 0.5) * 3.0,
+            r * Math.sin(phi) * Math.sin(theta)
+          );
+          this.positions.push(pos);
+          this.velocities.push(new THREE.Vector3());
+
+          this.dummy.position.copy(pos);
+          this.dummy.updateMatrix();
+          this.instancedMesh.setMatrixAt(i, this.dummy.matrix);
+
+          // Color per instance from cell hash
+          const col = CellOrganism.deriveColor(this.cells[i].txHash + this.cells[i].outputIndex);
+          this.instancedMesh.setColorAt(i, col);
+        }
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
+        if (this.instancedMesh.instanceColor) this.instancedMesh.instanceColor.needsUpdate = true;
+        this.group.add(this.instancedMesh);
+      }
+
+      update(time) {
+        const elapsed = (Date.now() - this.stateStartTime) / 1000;
+
+        if (this.state === 'MATERIALIZING') {
+          if (elapsed > 2.2) {
+            this.state = 'OBSERVING';
+            this.stateStartTime = Date.now();
+            UI.setAnnouncement('SPECIMENS ACTIVE', `${this.cells.length} NEW CELLS`, 'READY FOR ABSORPTION');
+          }
+        } else if (this.state === 'OBSERVING') {
+          if (elapsed > 3.0) {
+            this.state = 'SWARMING';
+            this.stateStartTime = Date.now();
+            UI.setAnnouncement('ABSORPTION SEQUENCE', 'KNOWLEDGE CONVERGENCE', 'CELLS DRAWN TO BEAKER');
+            if (window.labScene) window.labScene.pulseLiquid(2.2);
+            audioMgr.playBlockChime();
+          }
+        } else if (this.state === 'SWARMING') {
+          if (elapsed > 4.5) {
+            this.state = 'ABSORBING';
+            this.stateStartTime = Date.now();
+            audioMgr.playAbsorptionFizz();
+          }
+        } else if (this.state === 'ABSORBING') {
+          if (elapsed > 2.5) {
+            this.state = 'DONE';
+            this.dispose();
+            if (this.onComplete) this.onComplete();
+            return;
+          }
+        }
+
+        // Animate Organisms based on current state
+        if (!this.isInstanced) {
+          for (let i = 0; i < this.organisms.length; i++) {
+            this.organisms[i].update(time, this.state, elapsed);
+          }
+        } else {
+          this.updateInstanced(time, elapsed);
+        }
+      }
+
+      updateInstanced(time, elapsed) {
+        const count = this.cells.length;
+        const targetAperture = new THREE.Vector3(0, 4.6, 0); // Beaker mouth
+        const liquidCenter = new THREE.Vector3(0, 1.5, 0); // Liquid core
+
+        for (let i = 0; i < count; i++) {
+          const pos = this.positions[i];
+
+          if (this.state === 'MATERIALIZING' || this.state === 'OBSERVING') {
+            // Gentle hovering
+            pos.y += Math.sin(time * 3 + i) * 0.005;
+          } else if (this.state === 'SWARMING') {
+            // Vortex spiral into beaker rim
+            const dir = targetAperture.clone().sub(pos);
+            const dist = dir.length();
+            dir.normalize();
+            // Tangential spiral force
+            const tangent = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
+            pos.addScaledVector(dir, 0.06);
+            pos.addScaledVector(tangent, 0.04);
+          } else if (this.state === 'ABSORBING') {
+            // Sink into liquid and shrink
+            const dir = liquidCenter.clone().sub(pos).normalize();
+            pos.addScaledVector(dir, 0.05);
+          }
+
+          this.dummy.position.copy(pos);
+          const scale = this.state === 'ABSORBING' ? Math.max(0.01, 1.0 - elapsed / 2.5) : 1.0;
+          this.dummy.scale.setScalar(scale);
+          this.dummy.updateMatrix();
+          this.instancedMesh.setMatrixAt(i, this.dummy.matrix);
+        }
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
+      }
+
+      raycast(raycaster) {
+        if (this.isInstanced) return null;
+        for (const org of this.organisms) {
+          const hits = raycaster.intersectObject(org.mesh, true);
+          if (hits.length > 0) {
+            return org.cellData;
+          }
+        }
+        return null;
+      }
+
+      dispose() {
+        this.scene.remove(this.group);
+        if (!this.isInstanced) {
+          for (const org of this.organisms) {
+            org.dispose();
+          }
+        } else if (this.instancedMesh) {
+          this.instancedMesh.geometry.dispose();
+          this.instancedMesh.material.dispose();
+        }
+        this.organisms = [];
+      }
+    }
+
+    class CellOrganism {
+      constructor(cellData, index, total) {
+        this.cellData = cellData;
+        this.index = index;
+        this.total = total;
+        this.mesh = new THREE.Group();
+
+        // Seed deterministic traits from txHash + index
+        this.traits = CellOrganism.deriveTraits(cellData.txHash, cellData.outputIndex);
+        this.homePos = this.computeInitialPosition(index, total);
+        this.mesh.position.copy(this.homePos);
+
+        this.buildOrganismGeometry();
+      }
+
+      static deriveTraits(txHash, index) {
+        let hash = 0;
+        const str = `${txHash}:${index}`;
+        for (let i = 0; i < str.length; i++) {
+          hash = (hash << 5) - hash + str.charCodeAt(i);
+          hash |= 0;
+        }
+        const rng = (offset) => {
+          const x = Math.sin(hash + offset) * 10000;
+          return x - Math.floor(x);
+        };
+
+        const colors = [0x00f0ff, 0x00ffaa, 0xff00bb, 0xffaa00, 0x38ef7d, 0x11998e, 0x9b51e0];
+        const colorIdx = Math.floor(rng(1) * colors.length);
+
+        return {
+          primaryColor: colors[colorIdx],
+          pulsateSpeed: 2.0 + rng(2) * 3.0,
+          orbitSpeed: 0.5 + rng(3) * 1.5,
+          hasNucleus: true,
+          scaleMod: 0.8 + rng(4) * 0.4
+        };
+      }
+
+      static deriveColor(seedStr) {
+        let hash = 0;
+        for (let i = 0; i < seedStr.length; i++) {
+          hash = (hash << 5) - hash + seedStr.charCodeAt(i);
+          hash |= 0;
+        }
+        const r = (hash & 0xFF) / 255;
+        const g = ((hash >> 8) & 0xFF) / 255;
+        const b = ((hash >> 16) & 0xFF) / 255;
+        return new THREE.Color(r * 0.5, 0.4 + g * 0.6, 0.6 + b * 0.4);
+      }
+
+      computeInitialPosition(i, total) {
+        // Position cells gracefully around and in front of the beaker
+        const angle = (i / total) * Math.PI * 2;
+        const radius = 3.6 + (i % 3) * 0.7;
+        const y = 1.8 + (Math.sin(i * 1.7) * 1.2);
+        return new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+      }
+
+      buildOrganismGeometry() {
+        // Capacity logarithmic scale
+        let capScale = 1.0;
+        try {
+          const shannons = BigInt(this.cellData.capacity);
+          capScale = Math.min(1.5, Math.max(0.7, 0.8 + Math.log10(Number(shannons / 100000000n) + 1) * 0.15));
+        } catch (e) {}
+
+        const finalScale = this.traits.scaleMod * capScale;
+
+        // Outer Translucent Organic Membrane
+        this.membraneGeo = new THREE.IcosahedronGeometry(0.38 * finalScale, 2);
+        this.membraneMat = new THREE.MeshPhysicalMaterial({
+          color: this.traits.primaryColor,
+          emissive: this.traits.primaryColor,
+          emissiveIntensity: 0.45,
+          transmission: 0.65,
+          transparent: true,
+          roughness: 0.2,
+          ior: 1.35
+        });
+        this.membraneMesh = new THREE.Mesh(this.membraneGeo, this.membraneMat);
+        this.mesh.add(this.membraneMesh);
+
+        // Inner Glowing Nucleus
+        this.nucleusGeo = new THREE.SphereGeometry(0.18 * finalScale, 16, 16);
+        this.nucleusMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          wireframe: false
+        });
+        this.nucleusMesh = new THREE.Mesh(this.nucleusGeo, this.nucleusMat);
+        this.mesh.add(this.nucleusMesh);
+
+        // Distinct Type Script Ring if Type script is present
+        if (this.cellData.type !== null) {
+          const ringGeo = new THREE.TorusGeometry(0.46 * finalScale, 0.035, 8, 24);
+          const ringMat = new THREE.MeshBasicMaterial({ color: 0xffea00 });
+          this.typeRing = new THREE.Mesh(ringGeo, ringMat);
+          this.mesh.add(this.typeRing);
+        }
+
+        // Granules if Cell Data is present
+        if (this.cellData.outputData && this.cellData.outputData !== '0x') {
+          const granulesGeo = new THREE.BufferGeometry();
+          const count = 6;
+          const pos = new Float32Array(count * 3);
+          for (let g = 0; g < count; g++) {
+            pos[g * 3] = (Math.random() - 0.5) * 0.3 * finalScale;
+            pos[g * 3 + 1] = (Math.random() - 0.5) * 0.3 * finalScale;
+            pos[g * 3 + 2] = (Math.random() - 0.5) * 0.3 * finalScale;
+          }
+          granulesGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+          const granMat = new THREE.PointsMaterial({ color: 0x00ffaa, size: 0.06 });
+          this.granules = new THREE.Points(granulesGeo, granMat);
+          this.mesh.add(this.granules);
+        }
+      }
+
+      update(time, state, elapsed) {
+        // Organic Membrane Breathing / Pulsation
+        const pulse = 1.0 + Math.sin(time * this.traits.pulsateSpeed + this.index) * 0.08;
+        this.membraneMesh.scale.set(pulse, pulse, pulse);
+        this.mesh.rotation.x += 0.01;
+        this.mesh.rotation.y += 0.015;
+
+        if (this.typeRing) {
+          this.typeRing.rotation.z += 0.02;
+        }
+
+        if (state === 'MATERIALIZING') {
+          // Rise softly from zero scale
+          const progress = Math.min(1.0, elapsed / 1.5);
+          this.mesh.scale.setScalar(progress);
+        } else if (state === 'OBSERVING') {
+          // Gentle floating in orbital space
+          this.mesh.position.y = this.homePos.y + Math.sin(time * 2 + this.index) * 0.12;
+        } else if (state === 'SWARMING') {
+          // Choreographed spiral toward beaker opening
+          const target = new THREE.Vector3(0, 4.6, 0);
+          const dir = target.clone().sub(this.mesh.position);
+          const dist = dir.length();
+          dir.normalize();
+
+          const tangent = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
+          this.mesh.position.addScaledVector(dir, 0.065);
+          this.mesh.position.addScaledVector(tangent, 0.05);
+
+          // If reached top opening, descend into liquid
+          if (dist < 0.6) {
+            this.mesh.position.y -= 0.04;
+          }
+        } else if (state === 'ABSORBING') {
+          // Sink into liquid and dissolve
+          const liquidCore = new THREE.Vector3(0, 1.4, 0);
+          this.mesh.position.lerp(liquidCore, 0.04);
+          const scale = Math.max(0.001, 1.0 - elapsed / 2.0);
+          this.mesh.scale.setScalar(scale);
+          this.membraneMat.opacity = scale;
+        }
+      }
+
+      dispose() {
+        this.membraneGeo.dispose();
+        this.membraneMat.dispose();
+        this.nucleusGeo.dispose();
+        this.nucleusMat.dispose();
+        if (this.typeRing) {
+          this.typeRing.geometry.dispose();
+          this.typeRing.material.dispose();
+        }
+        if (this.granules) {
+          this.granules.geometry.dispose();
+          this.granules.material.dispose();
+        }
+      }
+    }
+
+    // --------------------------------------------------------------------------
+    // 6. UI MANAGER & INTERACTION HANDLERS
+    // --------------------------------------------------------------------------
+    class UIManager {
+      static init() {
+        // DOM Elements
+        this.elBlockNum = document.getElementById('blockNumber');
+        this.elStatusDot = document.getElementById('statusDot');
+        this.elCellCounter = document.getElementById('cellCounter');
+        this.elBanner = document.getElementById('announcementBanner');
+        this.elBannerTitle = document.getElementById('announcementTitle');
+        this.elBannerMain = document.getElementById('announcementMain');
+        this.elBannerSub = document.getElementById('announcementSub');
+        this.elBeakerStatus = document.getElementById('beakerStatus');
+
+        // Modals
+        this.specimenModal = document.getElementById('specimenModal');
+        this.settingsModal = document.getElementById('settingsModal');
+
+        // Buttons
+        document.getElementById('closeSpecimenBtn').onclick = () => this.hideSpecimen();
+        document.getElementById('closeSettingsBtn').onclick = () => this.hideSettings();
+        document.getElementById('settingsBtn').onclick = () => this.showSettings();
+        document.getElementById('audioToggleBtn').onclick = () => this.toggleAudio();
+        document.getElementById('saveSettingsBtn').onclick = () => this.saveSettings();
+        document.getElementById('simulateBlockBtn').onclick = () => this.simulateBlock();
+
+        // Copy Outpoint
+        document.getElementById('copyOutpointBtn').onclick = () => {
+          if (this.currentOutpoint) {
+            navigator.clipboard.writeText(this.currentOutpoint);
+            const btn = document.getElementById('copyOutpointBtn');
+            const prev = btn.textContent;
+            btn.textContent = 'COPIED TO CLIPBOARD!';
+            setTimeout(() => btn.textContent = prev, 1800);
+          }
+        };
+
+        // Load cached inputs
+        const cachedHttp = localStorage.getItem('ckb_http_rpc') || CONFIG.defaultHttpRpc;
+        const cachedWs = localStorage.getItem('ckb_ws_rpc') || '';
+        document.getElementById('rpcInput').value = cachedHttp;
+        document.getElementById('wsInput').value = cachedWs;
+      }
+
+      static updateBlock(num) {
+        if (this.elBlockNum) {
+          this.elBlockNum.textContent = `#${num.toLocaleString()}`;
+        }
+      }
+
+      static updateStatus(status, detail) {
+        if (!this.elStatusDot) return;
+        this.elStatusDot.className = 'status-dot ' + status.toLowerCase();
+        if (this.elBeakerStatus && detail) {
+          this.elBeakerStatus.textContent = detail.toUpperCase();
+        }
+      }
+
+      static updateCellCount(count) {
+        if (this.elCellCounter) {
+          this.elCellCounter.textContent = count.toLocaleString();
+        }
+      }
+
+      static animateCellCounter(targetCount) {
+        let current = 0;
+        const step = Math.max(1, Math.floor(targetCount / 25));
+        const interval = setInterval(() => {
+          current = Math.min(targetCount, current + step);
+          this.updateCellCount(current);
+          if (current >= targetCount) {
+            clearInterval(interval);
+          }
+        }, 40);
+      }
+
+      static setAnnouncement(title, main, sub, duration = 4000) {
+        if (!this.elBanner) return;
+        this.elBannerTitle.textContent = title;
+        this.elBannerMain.textContent = main;
+        this.elBannerSub.textContent = sub;
+        this.elBanner.classList.add('visible');
+
+        clearTimeout(this.bannerTimer);
+        this.bannerTimer = setTimeout(() => {
+          this.elBanner.classList.remove('visible');
+        }, duration);
+      }
+
+      static showSpecimen(cellData) {
+        this.currentOutpoint = cellData.outPoint;
+        const shortTx = cellData.txHash ? `${cellData.txHash.slice(0, 10)}...${cellData.txHash.slice(-8)}` : '0x';
+        document.getElementById('specimenTx').textContent = shortTx;
+        document.getElementById('specimenIndex').textContent = `#${cellData.outputIndex}`;
+        document.getElementById('specimenCapacity').textContent = CellExtractor.formatCapacity(cellData.capacity);
+        document.getElementById('specimenType').textContent = cellData.type ? 'PRESENT (SCRIPT ACTIVE)' : 'NONE (PLAIN UTXO)';
+        const bytes = CellExtractor.getDataByteLength(cellData.outputData);
+        document.getElementById('specimenData').textContent = `${bytes} BYTES (${cellData.outputData === '0x' ? 'EMPTY' : 'CONTAINS DATA'})`;
+        this.specimenModal.classList.add('open');
+
+        // Android Haptic feedback via WatchBridge if available
+        if (window.WatchBridge && window.WatchBridge.vibrate) {
+          window.WatchBridge.vibrate('click');
+        }
+      }
+
+      static hideSpecimen() {
+        this.specimenModal.classList.remove('open');
+      }
+
+      static showSettings() {
+        this.settingsModal.classList.add('open');
+      }
+
+      static hideSettings() {
+        this.settingsModal.classList.remove('open');
+      }
+
+      static saveSettings() {
+        const http = document.getElementById('rpcInput').value;
+        const ws = document.getElementById('wsInput').value;
+        window.ckbRpc.setEndpoints(http, ws);
+        this.hideSettings();
+      }
+
+      static toggleAudio() {
+        const enabled = audioMgr.toggle();
+        document.getElementById('soundIconOn').style.display = enabled ? 'block' : 'none';
+        document.getElementById('soundIconOff').style.display = enabled ? 'none' : 'block';
+      }
+
+      static simulateBlock() {
+        this.hideSettings();
+        // Generate synthetic block with randomized real-looking CKB cells
+        const count = 10 + Math.floor(Math.random() * 25);
+        const synthTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
+        const mockCells = [];
+
+        for (let i = 0; i < count; i++) {
+          const cap = (BigInt(61 + Math.floor(Math.random() * 500)) * 100000000n).toString(16);
+          mockCells.push({
+            txHash: synthTxHash,
+            outputIndex: i,
+            outPoint: `${synthTxHash}:${i}`,
+            capacity: '0x' + cap,
+            lock: { code_hash: '0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8', hash_type: 'type', args: '0x' },
+            type: Math.random() > 0.6 ? { code_hash: '0x5e7a9...type', hash_type: 'type', args: '0x' } : null,
+            outputData: Math.random() > 0.5 ? '0x0001020304050607' : '0x'
+          });
+        }
+
+        const simulatedBlock = {
+          blockNumber: 17234568 + Math.floor(Math.random() * 100),
+          blockHash: synthTxHash,
+          txCount: Math.ceil(count / 3),
+          cells: mockCells
+        };
+
+        window.handleBlockArrival(simulatedBlock);
+      }
+    }
+
+    const UI = UIManager;
+
+    // --------------------------------------------------------------------------
+    // 7. MAIN ORCHESTRATION & LIFECYCLE
+    // --------------------------------------------------------------------------
+    const canvas = document.getElementById('webgl-canvas');
+    const labScene = new LabScene(canvas);
+    window.labScene = labScene;
+
+    const ckbRpc = new CKBRpc();
+    window.ckbRpc = ckbRpc;
+
+    UI.init();
+
+    // Block Arrival Handler
+    window.handleBlockArrival = (blockData) => {
+      if (!blockData) return;
+
+      const { blockNumber, cells, txCount } = blockData;
+      UI.updateBlock(blockNumber);
+      UI.animateCellCounter(cells.length);
+      UI.setAnnouncement('NEW BLOCK ARRIVED', `${cells.length} NEW CELLS`, `#${blockNumber.toLocaleString()} • ${txCount} TRANSACTIONS`);
+
+      // Watch haptic vibration
+      if (window.WatchBridge && window.WatchBridge.vibrate) {
+        window.WatchBridge.vibrate('heavy_click');
+      }
+
+      // Dispose any prior active cell batch and launch new visual organisms
+      if (labScene.cellBatch) {
+        labScene.cellBatch.dispose();
+      }
+
+      labScene.cellBatch = new CellBatch(labScene.scene, cells, () => {
+        UI.setAnnouncement('ABSORPTION COMPLETE', `${cells.length} CELLS STORED`, 'KNOWLEDGE OF CHAIN UPDATED');
+        UI.updateCellCount(0);
+        labScene.relaxLiquid();
+      });
+    };
+
+    // Connect to live CKB RPC
+    ckbRpc.start(
+      (blockData, tipNum) => {
+        if (tipNum) {
+          UI.updateBlock(tipNum);
+          UI.setAnnouncement('OBSERVATION ACTIVE', 'CKB CELL LABORATORY', 'AWAITING NEW CELLS');
+        } else if (blockData) {
+          window.handleBlockArrival(blockData);
+        }
+      },
+      (status, detail) => {
+        UI.updateStatus(status, detail);
+      }
+    );
+
+    // Animation Loop
+    let lastTime = 0;
+    function renderLoop(timeMs) {
+      requestAnimationFrame(renderLoop);
+      const time = timeMs * 0.001;
+      labScene.update(time);
+    }
+    requestAnimationFrame(renderLoop);
+
+    // Visibility Handling to save Watch Battery when display is dimmed
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        audioMgr.stopLabAmbience();
+      } else if (audioMgr.enabled) {
+        audioMgr.startLabAmbience();
+      }
+    });
+  </script>
+</body>
+</html>

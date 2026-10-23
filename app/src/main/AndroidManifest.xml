@@ -40,14 +40,14 @@
         <!-- Visualiser Housing Activity (Hosts Three.js WebGL & Rotary Bridge) -->
         <activity
             android:name=".VisualiserActivity"
-            android:exported="false"
+            android:exported="true"
             android:hardwareAccelerated="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
         <!-- Node & Display Settings Activity -->
         <activity
             android:name=".SettingsActivity"
-            android:exported="false"
+            android:exported="true"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
     </application>

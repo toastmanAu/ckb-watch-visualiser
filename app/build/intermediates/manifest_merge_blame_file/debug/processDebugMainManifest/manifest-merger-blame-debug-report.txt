@@ -1,0 +1,201 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="network.nervos.watchvisualiser"
+4    android:versionCode="1"
+5    android:versionName="1.0.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="30"
+9        android:targetSdkVersion="34" />
+10
+11    <uses-feature android:name="android.hardware.type.watch" />
+11-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:4:5-64
+11-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:4:19-61
+12
+13    <!-- Network permissions for live CKB JSON-RPC and WebSockets -->
+14    <uses-permission android:name="android.permission.INTERNET" />
+14-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:7:5-67
+14-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:7:22-64
+15    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+15-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:8:5-79
+15-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:8:22-76
+16
+17    <!-- Haptic feedback on block arrivals and rotary crown ticks -->
+18    <uses-permission android:name="android.permission.VIBRATE" />
+18-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:11:5-66
+18-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:11:22-63
+19
+20    <!-- Keep screen awake during active blockchain observation -->
+21    <uses-permission android:name="android.permission.WAKE_LOCK" />
+21-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:14:5-68
+21-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:14:22-65
+22
+23    <permission
+23-->[androidx.core:core:1.13.1] /home/phill/.gradle/caches/8.10.2/transforms/072dc01d0a7235bc4fa23552e25210f0/transformed/core-1.13.1/AndroidManifest.xml:22:5-24:47
+24        android:name="network.nervos.watchvisualiser.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+24-->[androidx.core:core:1.13.1] /home/phill/.gradle/caches/8.10.2/transforms/072dc01d0a7235bc4fa23552e25210f0/transformed/core-1.13.1/AndroidManifest.xml:23:9-81
+25        android:protectionLevel="signature" />
+25-->[androidx.core:core:1.13.1] /home/phill/.gradle/caches/8.10.2/transforms/072dc01d0a7235bc4fa23552e25210f0/transformed/core-1.13.1/AndroidManifest.xml:24:9-44
+26
+27    <uses-permission android:name="network.nervos.watchvisualiser.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+27-->[androidx.core:core:1.13.1] /home/phill/.gradle/caches/8.10.2/transforms/072dc01d0a7235bc4fa23552e25210f0/transformed/core-1.13.1/AndroidManifest.xml:26:5-97
+27-->[androidx.core:core:1.13.1] /home/phill/.gradle/caches/8.10.2/transforms/072dc01d0a7235bc4fa23552e25210f0/transformed/core-1.13.1/AndroidManifest.xml:26:22-94
+28
+29    <application
+29-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:16:5-53:19
+30        android:allowBackup="true"
+30-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:17:9-35
+31        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+31-->[androidx.core:core:1.13.1] /home/phill/.gradle/caches/8.10.2/transforms/072dc01d0a7235bc4fa23552e25210f0/transformed/core-1.13.1/AndroidManifest.xml:28:18-86
+32        android:debuggable="true"
+33        android:extractNativeLibs="false"
+34        android:hardwareAccelerated="true"
+34-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:23:9-43
+35        android:icon="@mipmap/ic_launcher"
+35-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:18:9-43
+36        android:label="@string/app_name"
+36-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:19:9-41
+37        android:roundIcon="@mipmap/ic_launcher"
+37-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:20:9-48
+38        android:supportsRtl="true"
+38-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:21:9-35
+39        android:theme="@android:style/Theme.DeviceDefault" >
+39-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:22:9-59
+40        <meta-data
+40-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:25:9-27:36
+41            android:name="com.google.android.wearable.standalone"
+41-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:26:13-66
+42            android:value="true" />
+42-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:27:13-33
+43
+44        <!-- Main Menu & Visualiser Selector Activity -->
+45        <activity
+45-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:30:9-38:20
+46            android:name="network.nervos.watchvisualiser.MainActivity"
+46-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:31:13-41
+47            android:exported="true"
+47-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:32:13-36
+48            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" >
+48-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:33:13-75
+49            <intent-filter>
+49-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:34:13-37:29
+50                <action android:name="android.intent.action.MAIN" />
+50-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:35:17-69
+50-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:35:25-66
+51
+52                <category android:name="android.intent.category.LAUNCHER" />
+52-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:36:17-77
+52-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:36:27-74
+53            </intent-filter>
+54        </activity>
+55
+56        <!-- Visualiser Housing Activity (Hosts Three.js WebGL & Rotary Bridge) -->
+57        <activity
+57-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:41:9-45:78
+58            android:name="network.nervos.watchvisualiser.VisualiserActivity"
+58-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:42:13-47
+59            android:exported="true"
+59-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:43:13-36
+60            android:hardwareAccelerated="true"
+60-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:44:13-47
+61            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+61-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:45:13-75
+62
+63        <!-- Node & Display Settings Activity -->
+64        <activity
+64-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:48:9-51:78
+65            android:name="network.nervos.watchvisualiser.SettingsActivity"
+65-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:49:13-45
+66            android:exported="true"
+66-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:50:13-36
+67            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+67-->/home/phill/watch-visualiser/app/src/main/AndroidManifest.xml:51:13-75
+68
+69        <uses-library
+69-->[androidx.wear:wear:1.3.0] /home/phill/.gradle/caches/8.10.2/transforms/bbfdb4c4ab2ae2070c0187e8441273e6/transformed/wear-1.3.0/AndroidManifest.xml:23:9-25:40
+70            android:name="com.google.android.wearable"
+70-->[androidx.wear:wear:1.3.0] /home/phill/.gradle/caches/8.10.2/transforms/bbfdb4c4ab2ae2070c0187e8441273e6/transformed/wear-1.3.0/AndroidManifest.xml:24:13-55
+71            android:required="false" />
+71-->[androidx.wear:wear:1.3.0] /home/phill/.gradle/caches/8.10.2/transforms/bbfdb4c4ab2ae2070c0187e8441273e6/transformed/wear-1.3.0/AndroidManifest.xml:25:13-37
+72        <uses-library
+72-->[androidx.wear.compose:compose-foundation:1.4.0] /home/phill/.gradle/caches/8.10.2/transforms/634cb55e5eb89b3e810d4d3d11f94bf6/transformed/jetified-compose-foundation-1.4.0/AndroidManifest.xml:23:9-25:40
+73            android:name="wear-sdk"
+73-->[androidx.wear.compose:compose-foundation:1.4.0] /home/phill/.gradle/caches/8.10.2/transforms/634cb55e5eb89b3e810d4d3d11f94bf6/transformed/jetified-compose-foundation-1.4.0/AndroidManifest.xml:24:13-36
+74            android:required="false" />
+74-->[androidx.wear.compose:compose-foundation:1.4.0] /home/phill/.gradle/caches/8.10.2/transforms/634cb55e5eb89b3e810d4d3d11f94bf6/transformed/jetified-compose-foundation-1.4.0/AndroidManifest.xml:25:13-37
+75
+76        <activity
+76-->[androidx.compose.ui:ui-tooling-android:1.7.4] /home/phill/.gradle/caches/8.10.2/transforms/0e2b29b4cc9cc73f8ecf22408f301ff0/transformed/jetified-ui-tooling-release/AndroidManifest.xml:23:9-25:39
+77            android:name="androidx.compose.ui.tooling.PreviewActivity"
+77-->[androidx.compose.ui:ui-tooling-android:1.7.4] /home/phill/.gradle/caches/8.10.2/transforms/0e2b29b4cc9cc73f8ecf22408f301ff0/transformed/jetified-ui-tooling-release/AndroidManifest.xml:24:13-71
+78            android:exported="true" />
+78-->[androidx.compose.ui:ui-tooling-android:1.7.4] /home/phill/.gradle/caches/8.10.2/transforms/0e2b29b4cc9cc73f8ecf22408f301ff0/transformed/jetified-ui-tooling-release/AndroidManifest.xml:25:13-36
+79
+80        <provider
+80-->[androidx.emoji2:emoji2:1.3.0] /home/phill/.gradle/caches/8.10.2/transforms/4e310d0ea938ca15dea5a43ab79e5ecd/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+81            android:name="androidx.startup.InitializationProvider"
+81-->[androidx.emoji2:emoji2:1.3.0] /home/phill/.gradle/caches/8.10.2/transforms/4e310d0ea938ca15dea5a43ab79e5ecd/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:25:13-67
+82            android:authorities="network.nervos.watchvisualiser.androidx-startup"
+82-->[androidx.emoji2:emoji2:1.3.0] /home/phill/.gradle/caches/8.10.2/transforms/4e310d0ea938ca15dea5a43ab79e5ecd/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:26:13-68
+83            android:exported="false" >
+83-->[androidx.emoji2:emoji2:1.3.0] /home/phill/.gradle/caches/8.10.2/transforms/4e310d0ea938ca15dea5a43ab79e5ecd/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:27:13-37
+84            <meta-data
+84-->[androidx.emoji2:emoji2:1.3.0] /home/phill/.gradle/caches/8.10.2/transforms/4e310d0ea938ca15dea5a43ab79e5ecd/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+85                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+85-->[androidx.emoji2:emoji2:1.3.0] /home/phill/.gradle/caches/8.10.2/transforms/4e310d0ea938ca15dea5a43ab79e5ecd/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:30:17-75
+86                android:value="androidx.startup" />
+86-->[androidx.emoji2:emoji2:1.3.0] /home/phill/.gradle/caches/8.10.2/transforms/4e310d0ea938ca15dea5a43ab79e5ecd/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:31:17-49
+87            <meta-data
+87-->[androidx.lifecycle:lifecycle-process:2.8.6] /home/phill/.gradle/caches/8.10.2/transforms/b7ef861eb906a090c09ffc99129bb178/transformed/jetified-lifecycle-process-2.8.6/AndroidManifest.xml:29:13-31:52
+88                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+88-->[androidx.lifecycle:lifecycle-process:2.8.6] /home/phill/.gradle/caches/8.10.2/transforms/b7ef861eb906a090c09ffc99129bb178/transformed/jetified-lifecycle-process-2.8.6/AndroidManifest.xml:30:17-78
+89                android:value="androidx.startup" />
+89-->[androidx.lifecycle:lifecycle-process:2.8.6] /home/phill/.gradle/caches/8.10.2/transforms/b7ef861eb906a090c09ffc99129bb178/transformed/jetified-lifecycle-process-2.8.6/AndroidManifest.xml:31:17-49
+90            <meta-data
+90-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+91                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+91-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+92                android:value="androidx.startup" />
+92-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+93        </provider>
+94
+95        <receiver
+95-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+96            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+96-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+97            android:directBootAware="false"
+97-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+98            android:enabled="true"
+98-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+99            android:exported="true"
+99-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+100            android:permission="android.permission.DUMP" >
+100-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+101            <intent-filter>
+101-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+102                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+102-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+102-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+103            </intent-filter>
+104            <intent-filter>
+104-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+105                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+105-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+105-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+106            </intent-filter>
+107            <intent-filter>
+107-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+108                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+108-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+108-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+109            </intent-filter>
+110            <intent-filter>
+110-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+111                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+111-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+111-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/phill/.gradle/caches/8.10.2/transforms/4452c98dc5c4a8f9df21849051bef05e/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+112            </intent-filter>
+113        </receiver>
+114    </application>
+115
+116</manifest>

@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         setContent {
             WearApp(
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
                 onSelectVisualiser = { info ->
                     if (info.isAvailable) {
                         val intent = Intent(this, VisualiserActivity::class.java).apply {
+                            putExtra(VisualiserActivity.EXTRA_VISUALISER_ID, info.id)
                             putExtra(VisualiserActivity.EXTRA_ASSET_PATH, info.assetPath)
                             putExtra(VisualiserActivity.EXTRA_VISUALISER_TITLE, info.title)
                         }
