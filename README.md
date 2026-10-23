@@ -1,115 +1,181 @@
-# Nervos Network Wear OS Visualisers (Pixel Watch 3)
+# ⌚ Nervos CKB Wear OS Visualisers (Pixel Watch 3)
 
-An interactive, high-performance **Wear OS (Pixel Watch 3)** housing and launcher for **Nervos Network (CKB)** blockchain visualizers.
+[![Wear OS](https://img.shields.io/badge/Wear%20OS-5.0%20%7C%20Pixel%20Watch%203-00f0ff?style=for-the-badge&logo=android)](https://wearos.google.com/)
+[![Nervos CKB](https://img.shields.io/badge/Nervos-CKB%20Cell%20Model-00ffaa?style=for-the-badge&logo=blockchain)](https://www.nervos.org/)
+[![Three.js](https://img.shields.io/badge/Three.js-WebGL%203D-black?style=for-the-badge&logo=threedotjs)](https://threejs.org/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-Compose%20for%20Wear-7f52ff?style=for-the-badge&logo=kotlin)](https://developer.android.com/training/wearables/compose)
 
-Centering around the flagship visualizer — the **CKB Cell Laboratory** — this application transforms live on-chain UTXO state transitions into an interactive, scientific 3D exhibit powered by Three.js and Wear OS native hardware integrations (Rotary Crown, Haptic Engine, and AMOLED circular viewport).
+An interactive, high-performance **Wear OS (Pixel Watch 3)** housing and launcher for live **Nervos Network (CKB)** blockchain visualizers.
 
----
-
-## 🌟 Features & Highlights
-
-### 1. Wear OS Housing & Launcher
-- **Menu-Driven Selection**: Smooth rotary-scrollable list built for round watch faces (`ScalingLazyColumn`), allowing easy switching between visualizers.
-- **Dynamic Visualiser Registry**: Extensible architecture (`VisualiserRegistry.kt`) designed to host multiple upcoming visualizers (Fiber Network, Mempool Particle Collider, Epoch Celestial Clock).
-- **Pixel Watch 3 Hardware Integration**:
-  - **Rotary Crown / Digital Crown Navigation**: Turning the physical watch crown rotates the 3D laboratory camera and zooms with smooth inertia.
-  - **Haptic Engine**: Haptic feedback impulses on new block arrivals, rotary encoder clicks, and cell specimen interactions.
-  - **AMOLED Dark Optimization**: Deep `#000000` blacks for battery efficiency on wearable displays.
-  - **Screen Wake Lock**: Optional "Keep Screen On" toggle in settings to observe chain activity without display timeout.
-- **Embedded & Self-Contained**: Visualizers are bundled directly inside `app/src/main/assets/visualisers/` for instant offline loading and zero-latency execution.
+This project bridges live on-chain UTXO state transitions into tactile, scientific, and contemplative exhibits on your wrist, complete with physical digital crown navigation, haptic engine feedback, and standalone Three.js mobile-first web exhibits.
 
 ---
 
-### 2. Flagship Visualizer: CKB Cell Laboratory
-The live CKB blockchain visualizer runs as a mobile-first, self-contained Three.js 3D application (`index.html`).
+## 📸 Visual Showcase
 
-#### Correct CKB Cell Model Implementation:
-- **UTXO Cell Extraction**:
-  $$\text{newCellCount} = \sum_{\text{tx} \in \text{block.transactions}} \text{tx.outputs.length}$$
-  Includes all transactions (including the cellbase transaction).
-- **Cell Identity**: Identified strictly by **OutPoint** (`txHash:outputIndex`).
-- **Capacity**: Hex Shannons parsed and converted accurately ($1\text{ CKB} = 100,000,000\text{ Shannons}$).
-- **Deterministic Biological Organisms**:
-  - Microscopic cell/germ-like organisms materialize deterministically from `txHash + outputIndex`.
-  - Translucent organic membrane with pulsating nucleus and soft cilia.
-  - Capacity scales organism volume logarithmically.
-  - Type Script presence manifests as an outer glowing organelle ring.
-  - Data payload ($>0$ bytes) adds internal cytoplasmic granules.
-- **The Glass Beaker & Liquid of Knowledge**:
-  - Physically based transparent glass beaker with refractive Fresnel materials and measurement graduations.
-  - Filled ~60% with swirling, translucent, luminescent "Liquid of Knowledge".
-  - Internal Brownian motion and vortex particles.
-- **Signature Absorption Choreography**:
-  1. *Detection*: Laboratory instruments pulse, announcement banner appears with exact new Cell count.
-  2. *Materialization*: Cells float in front of the camera for observation.
-  3. *Swarm*: Liquid of Knowledge surges in luminescence; cells form a spiral swarm converging on the beaker rim.
-  4. *Dissolution*: Cells enter the beaker, trigger liquid surface ripples, and dissolve into glowing particles.
-  5. *Recycling*: Transient geometries and materials are disposed cleanly with zero GPU memory leaks.
-- **Interactive Specimen Inspection**: Tap any cell or organism to inspect OutPoint, shortened transaction hash, capacity in CKB, Type Script status, and data payload, with one-tap copy.
-- **Audio Synthesizer**: Optional lab ambient drone, block chimes, and dissolution fizz synthesized via Web Audio API (no external audio assets required).
+### 1. Flagship: CKB Cell Laboratory
+Microscopic biological UTXO organisms materialize from real on-chain data and swirl into a central glass beaker containing the glowing **"Liquid of Knowledge"**.
+
+| Watch Menu | Observation Mode | Specimen Inspection Card |
+| :---: | :---: | :---: |
+| <img src="screenshots/menu.png" width="220" alt="Pixel Watch 3 Menu" /> | <img src="screenshots/after_launch.png" width="220" alt="Observation Mode" /> | <img src="screenshots/swarming.png" width="220" alt="Cell Specimen Inspection" /> |
+
+### 2. Exhibition: Japanese Maple Bonsai
+Newly created CKB Cells detach as vibrant autumn maple leaves that gracefully flutter, tumble, and drift from a lush **Japanese Maple Bonsai** canopy onto an ornate display stand.
+
+| Launcher Selection | Japanese Maple Bonsai | Falling Autumn Leaves |
+| :---: | :---: | :---: |
+| <img src="screenshots/emulator_menu_scrolled.png" width="220" alt="Bonsai in Menu" /> | <img src="screenshots/emulator_bonsai_opened.png" width="220" alt="Bonsai Scene" /> | <img src="screenshots/emulator_leaves_falling.png" width="220" alt="Falling Leaves Event" /> |
 
 ---
 
-## 📁 Project Structure
+## 🌟 Core Architecture
+
+### Dual-Engine Design
+1. **Native Wear OS 60 FPS Canvas Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`):
+   - Standard Android `WebView` is omitted on Wear OS devices to conserve RAM and storage.
+   - We engineered a zero-overhead, hardware-accelerated native 2D/3D renderer running at a locked 60 FPS on the Pixel Watch 3 GPU.
+   - Direct coroutine-based JSON-RPC streaming over Wi-Fi/Bluetooth proxy with minimal battery consumption.
+2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`):
+   - Standalone single-file HTML/CSS/JavaScript implementations.
+   - Procedural 3D geometry, refractive Fresnel glass materials, particle vortices, and Web Audio API sound synthesis.
+   - Smooth museum-turntable auto-orbit with pinch-to-zoom and touch drag controls.
+
+---
+
+## 🧬 CKB Cell Model Implementation
+
+This visualizer strictly adheres to the fundamental architecture of Nervos CKB:
+
+> **Every entry in every transaction's `outputs` array is one newly created CKB Cell.**
+
+$$\text{newCellCount} = \sum_{\text{tx} \in \text{block.transactions}} \text{tx.outputs.length}$$
+
+- **Comprehensive Scope**: Counts all transaction outputs, including the cellbase transaction.
+- **Excluded Non-Outputs**: Ignores inputs, cellDeps, header deps, witnesses, and `outputs_data`.
+- **Identity by OutPoint**: Cells are strictly identified by OutPoint (`${txHash}:${outputIndex}`).
+- **Capacity Conversion**: Hex Shannons parsed using arbitrary-precision arithmetic:
+  $$1\text{ CKB} = 100,000,000\text{ Shannons}$$
+- **Deterministic Trait Generation**:
+  - Capacity scales organism volume or leaf mass logarithmically.
+  - Presence of a Type Script generates a distinctive glowing organelle ring or golden hue.
+  - Data payload ($>0\text{ bytes}$) generates visible internal granules.
+
+---
+
+## ⌚ Pixel Watch 3 Hardware Integrations
+
+- **Digital Crown / Rotary Encoder**:
+  - Physical watch crown inputs (`AXIS_SCROLL`) smoothly orbit the 3D camera around the centerpiece with realistic rotational inertia.
+- **Haptic Engine (`VibratorManager`)**:
+  - Subtle tactile ticks on rotary crown increments.
+  - Rhythmic double-pulses upon new block commits.
+  - Crisp haptic clicks when inspecting a Cell specimen.
+- **AMOLED Power Optimization**:
+  - Pure `#000000` black backgrounds to minimize power draw on wearable OLED panels.
+  - Capped pixel ratios and frame throttling when the screen is dimmed.
+- **Keep Screen Awake (`FLAG_KEEP_SCREEN_ON`)**:
+  - Configurable toggle so users can monitor the live blockchain without display timeout.
+
+---
+
+## 📁 Repository Structure
 
 ```text
 watch-visualiser/
-├── index.html                   # Standalone self-contained HTML/Three.js visualizer
-├── server.py                    # Local development preview server (Python)
+├── index.html                   # CKB Cell Laboratory (Three.js Web Exhibit)
+├── bonsai.html                  # Japanese Maple Bonsai (Three.js Web Exhibit)
+├── three.min.js                 # Bundled Three.js engine for offline execution
+├── server.py                    # Zero-dependency local dev server with auto port detection
 ├── build.gradle.kts             # Root Gradle build script
 ├── settings.gradle.kts          # Gradle project configuration
-├── gradle.properties            # JVM & AndroidX properties
+├── gradle.properties            # JVM & AndroidX optimization properties
 ├── gradlew                      # Gradle wrapper script
-├── app/
-│   ├── build.gradle.kts         # Wear OS application module (Compose + WebKit)
-│   └── src/main/
-│       ├── AndroidManifest.xml  # Wear OS manifest, permissions & activities
-│       ├── assets/
-│       │   └── visualisers/
-│       │       └── ckb-cell-lab/
-│       │           └── index.html # Bundled watch visualizer
-│       ├── java/network/nervos/watchvisualiser/
-│       │   ├── MainActivity.kt        # Menu-driven Wear OS Compose launcher
-│       │   ├── VisualiserActivity.kt  # Hardware-accelerated WebView container
-│       │   ├── SettingsActivity.kt    # Node RPC and haptic configuration
-│       │   ├── bridge/
-│       │   │   └── WatchBridge.kt     # Native Android <-> JavaScript bridge
-│       │   ├── data/
-│       │   │   ├── VisualiserRegistry.kt # Registry of visualizer modules
-│       │   │   └── AppPreferences.kt     # SharedPreferences store
-│       │   └── model/
-│       │       └── VisualiserInfo.kt     # Visualizer item data model
-│       └── res/                       # Drawables, colors, strings, mipmap
+├── screenshots/                 # Captured Pixel Watch 3 & emulator screenshots
+└── app/
+    ├── build.gradle.kts         # Wear OS application module (Compose for Wear OS)
+    └── src/main/
+        ├── AndroidManifest.xml  # Standalone watch app declaration & permissions
+        ├── assets/visualisers/  # Bundled offline visualizer web apps
+        │   ├── ckb-cell-lab/index.html
+        │   └── ckb-bonsai/index.html
+        ├── java/network/nervos/watchvisualiser/
+        │   ├── MainActivity.kt        # Rotary-scrollable Wear OS Compose menu
+        │   ├── VisualiserActivity.kt  # Native visualizer activity dispatcher
+        │   ├── SettingsActivity.kt    # CKB RPC & haptic settings screen
+        │   ├── data/
+        │   │   ├── CkbRpcClient.kt       # Native CKB JSON-RPC & Cell extractor
+        │   │   ├── VisualiserRegistry.kt # Extensible visualizer catalog
+        │   │   └── AppPreferences.kt     # SharedPreferences store
+        │   └── ui/
+        │       ├── LabVisualiserView.kt    # 60 FPS Native Cell Lab renderer
+        │       └── BonsaiVisualiserView.kt # 60 FPS Native Bonsai renderer
+        └── res/                       # Vector drawables, colors, strings
 ```
 
 ---
 
-## 🚀 Running & Previewing
+## 🚀 Getting Started
 
-### A. Quick Browser Preview (Desktop / Mobile / Watch Browser)
-Run the built-in development server:
+### 1. Instant Browser Preview
+Run the included development server:
 ```bash
 python3 server.py
 ```
-Open [http://localhost:8080/](http://localhost:8080/) in any modern web browser.
-- **Desktop/Mobile**: Click and drag to orbit, scroll or pinch to zoom.
-- **Simulation**: Click the settings gear and click **"TEST BLOCK"** to simulate a live CKB block with authentic UTXO organisms at any time!
-- **Circular Screen Test**: Resize window to square ($450 \times 450$) or enable Chrome DevTools device mode.
+Open in any browser:
+- **CKB Cell Laboratory**: [http://localhost:8084/](http://localhost:8084/)
+- **Japanese Maple Bonsai**: [http://localhost:8084/bonsai.html](http://localhost:8084/bonsai.html)
 
-### B. Building & Deploying to Pixel Watch 3
-1. Connect Pixel Watch 3 via ADB (Wi-Fi debugging or USB cradle):
+*Tip: Click the gear icon $\rightarrow$ **"TEST BLOCK"** to simulate an immediate CKB block event with authentic UTXO organisms or falling leaves.*
+
+---
+
+### 2. Deploy to Physical Pixel Watch 3
+1. Enable **Developer Options** and **Wireless/USB Debugging** on your Pixel Watch 3.
+2. Connect via ADB:
    ```bash
    adb connect <WATCH_IP>:<PORT>
+   # or connect via USB charging cradle
    adb devices
    ```
-2. Build the Wear OS debug APK:
+3. Build and install the debug APK:
    ```bash
    ./gradlew assembleDebug
-   ```
-3. Install onto Pixel Watch 3:
-   ```bash
    adb install -r app/build/outputs/apk/debug/app-debug.apk
    ```
-4. Launch **CKB Visualisers** from the watch app drawer and select **Cell Laboratory**.
-   - Rotate the physical watch crown to smoothly spin around the glass beaker!
-   - Tap any cell to view specimen metadata on the watch face.
+4. Press the physical **Crown button** on the watch, open **CKB Visualisers**, and select any active visualizer!
+
+---
+
+### 3. Run in the Wear OS Emulator
+To spin up a local Pixel Watch 3 emulator:
+```bash
+# Create Wear OS AVD (if not already created)
+echo "no" | avdmanager create avd -n Pixel_Watch_3_WearOS \
+  -k "system-images;android-34;android-wear;x86_64" \
+  -d "wearos_large_round" --force
+
+# Launch emulator headless
+emulator -avd Pixel_Watch_3_WearOS -no-window -no-audio -gpu swiftshader_indirect &
+
+# Install & Launch
+adb -s emulator-5556 install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s emulator-5556 shell am start -n network.nervos.watchvisualiser/.MainActivity
+```
+
+---
+
+## 🗺️ Roadmap & Upcoming Visualizers
+
+The [`VisualiserRegistry.kt`](app/src/main/java/network/nervos/watchvisualiser/data/VisualiserRegistry.kt) is designed to host multiple Nervos visualizers:
+
+- [x] **CKB Cell Laboratory** (FLAGSHIP) — Microscopic UTXO organisms swirling into the Liquid of Knowledge.
+- [x] **Japanese Maple Bonsai** (ACTIVE) — Newly created Cells falling as vibrant autumn leaves.
+- [ ] **Fiber Network Star Map** (COMING SOON) — Real-time P2P lightning payment channel routing.
+- [ ] **Mempool Particle Collider** (COMING SOON) — High-energy unconfirmed transaction collisions.
+- [ ] **Epoch Celestial Clock** (COMING SOON) — Halving cycles, difficulty adjustments, and DAO yields.
+
+---
+
+## 📜 License
+Licensed under the [MIT License](LICENSE).
