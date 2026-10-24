@@ -38,6 +38,15 @@ object VisualiserRegistry {
             isAvailable = true
         ),
         VisualiserInfo(
+            id = "ckb_bricks",
+            title = "Epoch Brick Tower",
+            subtitle = "Live CKB Epoch constructed block-by-block from interlocking 3D plastic bricks",
+            badge = "ACTIVE",
+            iconRes = R.drawable.ic_bricks,
+            assetPath = "file:///android_asset/visualisers/ckb-bricks/index.html",
+            isAvailable = true
+        ),
+        VisualiserInfo(
             id = "fiber_network",
             title = "Fiber Network",
             subtitle = "Lightning-fast P2P state channels & peer routing topologies",

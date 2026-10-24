@@ -12,17 +12,19 @@ import network.nervos.watchvisualiser.data.CkbRpcClient
 import network.nervos.watchvisualiser.ui.BonsaiVisualiserView
 import network.nervos.watchvisualiser.ui.CuckooVisualiserView
 import network.nervos.watchvisualiser.ui.LabVisualiserView
+import network.nervos.watchvisualiser.ui.LegoTowerVisualiserView
 
 /**
  * Native Wear OS Activity housing the visualizer selected by the user.
- * Seamlessly routes to LabVisualiserView, BonsaiVisualiserView, or CuckooVisualiserView
- * with full Pixel Watch 3 Digital Crown / Rotary Encoder support and live CKB RPC streaming.
+ * Seamlessly routes to LabVisualiserView, BonsaiVisualiserView, CuckooVisualiserView,
+ * or LegoTowerVisualiserView with full Pixel Watch 3 Digital Crown / Rotary Encoder support.
  */
 class VisualiserActivity : ComponentActivity() {
 
     private var labView: LabVisualiserView? = null
     private var bonsaiView: BonsaiVisualiserView? = null
     private var cuckooView: CuckooVisualiserView? = null
+    private var bricksView: LegoTowerVisualiserView? = null
     private lateinit var preferences: AppPreferences
     private lateinit var rpcClient: CkbRpcClient
 
@@ -46,6 +48,10 @@ class VisualiserActivity : ComponentActivity() {
                 cuckooView = CuckooVisualiserView(this)
                 setContentView(cuckooView)
             }
+            "ckb_bricks" -> {
+                bricksView = LegoTowerVisualiserView(this)
+                setContentView(bricksView)
+            }
             else -> {
                 labView = LabVisualiserView(this)
                 setContentView(labView)
@@ -56,14 +62,17 @@ class VisualiserActivity : ComponentActivity() {
         rpcClient = CkbRpcClient(preferences.ckbRpcUrl, lifecycleScope).apply {
             onBaselineLoaded = { baseline ->
                 cuckooView?.onBaselineLoaded(baseline)
+                bricksView?.onBaselineLoaded(baseline)
             }
             onBlockDetected = { blockData ->
                 labView?.onBlockArrived(blockData)
                 bonsaiView?.onBlockArrived(blockData)
                 cuckooView?.onBlockArrived(blockData)
+                bricksView?.onBlockArrived(blockData)
             }
             onStatusChanged = { status ->
                 cuckooView?.onStatusUpdated(status)
+                bricksView?.onStatusUpdated(status)
             }
             start()
         }
@@ -81,6 +90,7 @@ class VisualiserActivity : ComponentActivity() {
             labView?.handleRotaryScroll(delta)
             bonsaiView?.handleRotaryScroll(delta)
             cuckooView?.handleRotaryScroll(delta)
+            bricksView?.handleRotaryScroll(delta)
             return true
         }
         return super.onGenericMotionEvent(event)
@@ -94,6 +104,6 @@ class VisualiserActivity : ComponentActivity() {
     companion object {
         const val EXTRA_VISUALISER_ID = "extra_visualiser_id"
         const val EXTRA_ASSET_PATH = "extra_asset_path"
-        const val EXTRA_VISUALISER_TITLE = "extra_visualiser_title"
+        const val EXTRA_VISUALISER_TITLE = "extra_asset_title"
     }
 }

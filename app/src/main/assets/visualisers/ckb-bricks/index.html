@@ -1,0 +1,1771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>NERVOS CKB • Epoch Brick Tower Visualizer</title>
+<style>
+  :root {
+    --bg-deep: #070b12;
+    --bg-mid: #0f1726;
+    --panel-bg: rgba(13, 20, 33, 0.84);
+    --panel-border: rgba(0, 245, 155, 0.28);
+    --ckb-green: #00f59b;
+    --ckb-cyan: #00d4ff;
+    --brick-gold: #ffcc33;
+    --amber-warn: #f5a623;
+    --crimson-err: #ff4d4f;
+    --text-main: #f0f6fc;
+    --text-dim: #8b9bb4;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 35%, #162238 0%, #090e17 68%, #04070c 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-main);
+    touch-action: none;
+  }
+
+  #canvas-container {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    z-index: 1;
+  }
+
+  /* Subtle exhibition vignette */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    background: radial-gradient(circle at 50% 50%, transparent 58%, rgba(3, 6, 12, 0.72) 100%);
+  }
+
+  /* Top Header Bar */
+  .top-bar {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 12px));
+    left: max(14px, env(safe-area-inset-left, 14px));
+    right: max(14px, env(safe-area-inset-right, 14px));
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .status-pill {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    padding: 8px 14px;
+    border-radius: 999px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  }
+
+  .status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--amber-warn);
+    box-shadow: 0 0 8px var(--amber-warn);
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+  .status-dot.connected {
+    background: var(--ckb-green);
+    box-shadow: 0 0 10px var(--ckb-green);
+  }
+  .status-dot.offline {
+    background: var(--crimson-err);
+    box-shadow: 0 0 8px var(--crimson-err);
+  }
+
+  .brand-stack {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand-title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--text-main);
+  }
+
+  .brand-status {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 9.5px;
+    color: var(--ckb-green);
+    letter-spacing: 0.6px;
+    margin-top: 1px;
+  }
+
+  .top-controls {
+    pointer-events: auto;
+    display: flex;
+    gap: 8px;
+  }
+
+  .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+    transition: transform 0.15s ease, border-color 0.2s ease;
+  }
+  .icon-btn:active {
+    transform: scale(0.92);
+  }
+  .icon-btn svg {
+    width: 19px;
+    height: 19px;
+    fill: currentColor;
+  }
+
+  /* Epoch Celebration Banner */
+  .celebration-banner {
+    position: fixed;
+    top: calc(max(12px, env(safe-area-inset-top, 12px)) + 62px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-12px);
+    z-index: 12;
+    background: linear-gradient(135deg, rgba(0, 245, 155, 0.22), rgba(0, 212, 255, 0.22));
+    border: 1.5px solid var(--ckb-green);
+    border-radius: 14px;
+    padding: 10px 18px;
+    text-align: center;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 10px 30px rgba(0, 245, 155, 0.28);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .celebration-banner.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .celebration-title {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1.6px;
+    color: var(--ckb-green);
+    text-transform: uppercase;
+  }
+  .celebration-sub {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 11px;
+    color: var(--text-main);
+    margin-top: 2px;
+  }
+
+  /* Compact Bottom HUD Card */
+  .hud-wrapper {
+    position: fixed;
+    bottom: max(14px, env(safe-area-inset-bottom, 14px));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(92vw, 410px);
+    z-index: 10;
+    pointer-events: auto;
+  }
+
+  .hud-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    padding: 12px 15px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .hud-card.pulse {
+    border-color: var(--brick-gold);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.8), 0 0 22px rgba(255, 204, 51, 0.32);
+  }
+
+  .hud-top-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .hud-block-group {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+  }
+
+  .hud-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .demo-tag {
+    display: none;
+    background: rgba(245, 166, 35, 0.2);
+    border: 1px solid var(--amber-warn);
+    color: var(--amber-warn);
+    font-family: ui-monospace, monospace;
+    font-size: 8.5px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    letter-spacing: 0.7px;
+  }
+  .demo-tag.visible {
+    display: inline-block;
+  }
+
+  .hud-block-val {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-main);
+  }
+
+  .hud-epoch-badge {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ckb-cyan);
+    background: rgba(0, 212, 255, 0.12);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+
+  /* Progress Bar */
+  .progress-track {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--ckb-green), var(--ckb-cyan));
+    border-radius: 999px;
+    transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .hud-metrics {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: var(--text-main);
+  }
+
+  .hud-sub-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 9.5px;
+    color: var(--text-dim);
+  }
+
+  /* Settings Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(4, 7, 13, 0.76);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .modal-card {
+    width: min(94vw, 410px);
+    background: #101929;
+    border: 1px solid rgba(0, 245, 155, 0.4);
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
+  }
+
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .modal-title {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    color: var(--ckb-green);
+    text-transform: uppercase;
+  }
+
+  .close-btn {
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: var(--text-main);
+    cursor: pointer;
+  }
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 245, 155, 0.35);
+    background: #070c14;
+    color: var(--text-main);
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 12px;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .action-btn {
+    flex: 1;
+    min-height: 44px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: #1a263d;
+    color: var(--text-main);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 0 10px;
+  }
+  .action-btn.primary {
+    background: linear-gradient(135deg, #00f59b, #00b8ff);
+    color: #041014;
+    border: none;
+  }
+  .action-btn.demo {
+    background: rgba(255, 204, 51, 0.14);
+    border-color: var(--brick-gold);
+    color: var(--brick-gold);
+  }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div class="vignette"></div>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <div class="status-pill">
+    <div class="status-dot" id="status-dot"></div>
+    <div class="brand-stack">
+      <div class="brand-title">NERVOS CKB • EPOCH TOWER</div>
+      <div class="brand-status" id="status-label">CONNECTING TO NERVOS CKB…</div>
+    </div>
+  </div>
+
+  <div class="top-controls">
+    <button class="icon-btn" id="btn-reset-cam" aria-label="Reset Camera Framing" title="Frame Tower">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btn-settings" aria-label="RPC & Demo Settings" title="Settings">
+      <svg viewBox="0 0 24 24">
+        <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Epoch Completion Banner -->
+<div class="celebration-banner" id="celebration-banner">
+  <div class="celebration-title" id="celebration-title">EPOCH COMPLETE</div>
+  <div class="celebration-sub" id="celebration-sub">1,800 BLOCKS CONSTRUCTED</div>
+</div>
+
+<!-- Bottom HUD -->
+<div class="hud-wrapper">
+  <div class="hud-card" id="hud-card">
+    <div class="hud-top-row">
+      <div class="hud-block-group">
+        <span class="hud-label">BLOCK</span>
+        <span class="demo-tag" id="demo-tag">DEMO</span>
+        <span class="hud-block-val" id="hud-block-num">—</span>
+      </div>
+      <div class="hud-epoch-badge" id="hud-epoch-num">EPOCH —</div>
+    </div>
+
+    <div class="progress-track">
+      <div class="progress-fill" id="hud-progress-fill"></div>
+    </div>
+
+    <div class="hud-metrics">
+      <span id="hud-progress-text">EPOCH PROGRESS: — / —</span>
+      <span id="hud-progress-pct">0.0%</span>
+    </div>
+
+    <div class="hud-sub-row">
+      <span id="hud-hash">HASH: —</span>
+      <span id="hud-remaining">REMAINING: —</span>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-backdrop" id="modal-settings">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title">CKB NODE &amp; DEMO CONTROLS</div>
+      <button class="close-btn" id="btn-close-settings">✕</button>
+    </div>
+
+    <div class="form-group">
+      <label for="input-rpc-url">CKB JSON-RPC Endpoint (HTTP/HTTPS)</label>
+      <input class="form-input" id="input-rpc-url" type="url" placeholder="https://mainnet.ckb.dev/" />
+    </div>
+
+    <div class="form-group">
+      <label for="input-ws-url">Optional WebSocket Endpoint (`new_tip_header`)</label>
+      <input class="form-input" id="input-ws-url" type="url" placeholder="wss://mainnet.ckb.dev/ws" />
+    </div>
+
+    <div class="btn-row">
+      <button class="action-btn demo" id="btn-demo-brick" type="button">🧱 DEMO NEW BLOCK</button>
+      <button class="action-btn demo" id="btn-demo-epoch" type="button">🎉 DEMO EPOCH ROLLOVER</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="action-btn" id="btn-reset-rpc" type="button">DEFAULT RPC</button>
+      <button class="action-btn primary" id="btn-save-rpc" type="button">SAVE &amp; RECONNECT</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* ============================================================================
+ * 1. BIGINT-SAFE CKB EPOCH & HEADER DECODER (RFC-0027)
+ * ============================================================================ */
+
+class EpochDecoder {
+  static hexToBigInt(hex) {
+    if (typeof hex !== 'string') return 0n;
+    const clean = hex.trim();
+    if (!clean || clean === '0x' || clean === '0X') return 0n;
+    try {
+      return BigInt(clean.startsWith('0x') || clean.startsWith('0X') ? clean : '0x' + clean);
+    } catch {
+      return null;
+    }
+  }
+
+  static formatBigIntWithCommas(bigVal) {
+    const s = bigVal.toString(10);
+    return s.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  /**
+   * Decode CKB 64-bit packed epoch field using BigInt bitwise operations:
+   * - lowest 24 bits: epochNumber
+   * - bits [24..39]:  epochIndex (0-based)
+   * - bits [40..55]:  epochLength
+   */
+  static decodeEpoch(epochHex) {
+    const value = this.hexToBigInt(epochHex);
+    if (value === null) return null;
+
+    const epochNumber = Number(value & 0xFFFFFFn);
+    const epochIndex = Number((value >> 24n) & 0xFFFFn);
+    const epochLength = Number((value >> 40n) & 0xFFFFn);
+
+    // Validate RFC-0027 invariant: 0 <= epochIndex < epochLength and epochLength > 0
+    if (epochLength <= 0 || epochIndex < 0 || epochIndex >= epochLength) {
+      return null;
+    }
+
+    return {
+      epochNumber,
+      epochIndex,
+      epochLength,
+      completedBricks: epochIndex + 1
+    };
+  }
+
+  static parseHeader(rawHeader, isDemo = false) {
+    if (!rawHeader || !rawHeader.epoch || !rawHeader.number) return null;
+    const epoch = this.decodeEpoch(rawHeader.epoch);
+    if (!epoch) return null;
+
+    const blockBigInt = this.hexToBigInt(rawHeader.number);
+    if (blockBigInt === null) return null;
+
+    const tsBigInt = this.hexToBigInt(rawHeader.timestamp || '0x0') || 0n;
+
+    return {
+      hash: rawHeader.hash || '0x0',
+      blockBigInt,
+      blockNumberFormatted: this.formatBigIntWithCommas(blockBigInt),
+      timestampMs: Number(tsBigInt),
+      epochNumber: epoch.epochNumber,
+      epochIndex: epoch.epochIndex,
+      epochLength: epoch.epochLength,
+      completedBricks: epoch.completedBricks,
+      isDemo
+    };
+  }
+}
+
+/* ============================================================================
+ * 2. DETERMINISTIC TOWER LAYOUT & BRICK PACKING ALGORITHM
+ * ============================================================================ */
+
+class TowerLayout {
+  /**
+   * Compute dynamic grid footprint and brick dimensions from `epochLength`
+   * so any CKB epoch (short or 2,000+ blocks) forms a well-proportioned 3D tower.
+   */
+  static getConfig(epochLength) {
+    let gridCols = 6;
+    let gridRows = 6;
+
+    if (epochLength <= 180) {
+      gridCols = 3; gridRows = 3;
+    } else if (epochLength <= 500) {
+      gridCols = 4; gridRows = 4;
+    } else if (epochLength <= 1100) {
+      gridCols = 5; gridRows = 5;
+    } else if (epochLength <= 2200) {
+      gridCols = 6; gridRows = 6;
+    } else {
+      gridCols = 8; gridRows = 8;
+    }
+
+    const bricksPerLayer = gridCols * gridRows;
+    const totalLayers = Math.ceil(epochLength / bricksPerLayer);
+
+    // Target total tower height around ~14–18 world units so portrait framing stays balanced
+    const targetMaxHeight = 16.5;
+    const rawBrickHeight = Math.min(0.42, Math.max(0.22, targetMaxHeight / Math.max(18, totalLayers)));
+    const brickWidth = rawBrickHeight * 1.95;
+    const brickDepth = rawBrickHeight * 1.95;
+    const gap = rawBrickHeight * 0.05;
+
+    return {
+      gridCols,
+      gridRows,
+      bricksPerLayer,
+      totalLayers,
+      brickWidth,
+      brickHeight: rawBrickHeight,
+      brickDepth,
+      gap,
+      towerHeight: totalLayers * rawBrickHeight
+    };
+  }
+
+  /**
+   * Deterministically map `epochIndex` (0-based) and `epochLength` to its 3D transform.
+   */
+  static getBrickTransform(epochIndex, epochLength, outPosition = new THREE.Vector3(), outQuaternion = new THREE.Quaternion(), outScale = new THREE.Vector3()) {
+    const cfg = this.getConfig(epochLength);
+    const layer = Math.floor(epochIndex / cfg.bricksPerLayer);
+    const slotInLayer = epochIndex % cfg.bricksPerLayer;
+
+    // Alternate spiral/serpentine ordering and slight interlocking offset on odd layers
+    const row = Math.floor(slotInLayer / cfg.gridCols);
+    const col = (row % 2 === 0)
+      ? (slotInLayer % cfg.gridCols)
+      : (cfg.gridCols - 1 - (slotInLayer % cfg.gridCols));
+
+    const pitchX = cfg.brickWidth + cfg.gap;
+    const pitchZ = cfg.brickDepth + cfg.gap;
+
+    const offsetX = ((cfg.gridCols - 1) * pitchX) / 2;
+    const offsetZ = ((cfg.gridRows - 1) * pitchZ) / 2;
+
+    // Subtle half-stud interlock twist on alternating layers for architectural realism
+    const interlockTwist = (layer % 2 === 1) ? 0.035 : 0;
+
+    const localX = col * pitchX - offsetX;
+    const localZ = row * pitchZ - offsetZ;
+    const y = (layer + 0.5) * cfg.brickHeight;
+
+    const cosT = Math.cos(interlockTwist);
+    const sinT = Math.sin(interlockTwist);
+    const rx = localX * cosT - localZ * sinT;
+    const rz = localX * sinT + localZ * cosT;
+
+    outPosition.set(rx, y, rz);
+    outQuaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), interlockTwist + ((layer % 2) * Math.PI * 0.5));
+    outScale.set(cfg.brickWidth, cfg.brickHeight, cfg.brickDepth);
+
+    return {
+      position: outPosition,
+      quaternion: outQuaternion,
+      scale: outScale,
+      layer,
+      config: cfg
+    };
+  }
+
+  /**
+   * Cohesive toy-brick palette progressing smoothly across layers.
+   */
+  static getBrickColor(epochIndex, epochLength, targetColor = new THREE.Color()) {
+    const cfg = this.getConfig(epochLength);
+    const layer = Math.floor(epochIndex / cfg.bricksPerLayer);
+    const slot = epochIndex % cfg.bricksPerLayer;
+
+    const palette = [
+      0x00d98b, // Nervos Emerald
+      0x00b4d8, // Cerulean Cyan
+      0x3b82f6, // Royal Blue
+      0x6366f1, // Indigo
+      0xf59e0b, // Warm Amber
+      0xef4444, // Brick Crimson
+      0x10b981, // Mint Jade
+      0xeab308  // Sunburst Yellow
+    ];
+
+    const bandIndex = Math.floor(layer / 3) % palette.length;
+    const accentIndex = (bandIndex + 1) % palette.length;
+    const hex = ((slot + layer) % 5 === 0) ? palette[accentIndex] : palette[bandIndex];
+    targetColor.setHex(hex);
+    return targetColor;
+  }
+}
+
+/* ============================================================================
+ * 3. PROCEDURAL LEGO-STYLE BRICK FACTORY (Shared Unit Geometry + Studs)
+ * ============================================================================ */
+
+class BrickFactory {
+  /**
+   * Creates a normalized unit LEGO-style brick geometry (1 x 1 x 1 body with
+   * bevelled top edges and 4 cylindrical studs on top) for high-speed InstancedMesh rendering.
+   */
+  static createUnitBrickGeometry() {
+    const parts = [];
+
+    // Main body (slightly inset for clean inter-brick seam lines)
+    const bodyGeo = new THREE.BoxGeometry(0.96, 0.96, 0.96);
+    parts.push(bodyGeo);
+
+    // Bevelled top cap plate
+    const capGeo = new THREE.BoxGeometry(0.90, 0.06, 0.90);
+    capGeo.translate(0, 0.49, 0);
+    parts.push(capGeo);
+
+    // 2x2 cylindrical LEGO studs on top
+    const studRadius = 0.145;
+    const studHeight = 0.18;
+    const studOffsets = [
+      [-0.24, -0.24],
+      [ 0.24, -0.24],
+      [-0.24,  0.24],
+      [ 0.24,  0.24]
+    ];
+
+    for (const [sx, sz] of studOffsets) {
+      const stud = new THREE.CylinderGeometry(studRadius, studRadius, studHeight, 14);
+      stud.translate(sx, 0.48 + studHeight * 0.5, sz);
+      parts.push(stud);
+    }
+
+    const merged = BufferGeometryUtils.mergeGeometries(parts, false);
+    merged.computeVertexNormals();
+    return merged;
+  }
+
+  /**
+   * Generate a crisp CanvasTexture physically printed with the CKB Block Number
+   * for the front face of the Hero Brick.
+   */
+  static createHeroLabelTexture(blockNumberText) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    // Glossy Gold/Emerald Hero Brick Face
+    const grad = ctx.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, '#ffdf5d');
+    grad.addColorStop(1, '#e6a817');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 256);
+
+    // Subtle inset border plate
+    ctx.strokeStyle = 'rgba(25, 16, 4, 0.35)';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(18, 18, 476, 220);
+
+    // "NERVOS CKB BLOCK" header stamp
+    ctx.fillStyle = '#241604';
+    ctx.font = '800 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('NERVOS CKB BLOCK', 256, 82);
+
+    // Actual Block Number "#12,345,678"
+    ctx.fillStyle = '#0d0701';
+    ctx.font = '900 56px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    ctx.fillText(`#${blockNumberText}`, 256, 158);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    return tex;
+  }
+}
+
+/* ============================================================================
+ * 4. INSTANCED TOWER RENDERER & HISTORICAL SKYLINE
+ * ============================================================================ */
+
+class TowerRenderer {
+  constructor(scene, unitBrickGeo) {
+    this.scene = scene;
+    this.unitBrickGeo = unitBrickGeo;
+    this.maxInstances = 4096;
+
+    this.plasticMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.22,
+      metalness: 0.06
+    });
+
+    this.instancedMesh = new THREE.InstancedMesh(
+      this.unitBrickGeo,
+      this.plasticMaterial,
+      this.maxInstances
+    );
+    this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.instancedMesh.castShadow = true;
+    this.instancedMesh.receiveShadow = true;
+    this.instancedMesh.count = 0;
+    this.scene.add(this.instancedMesh);
+
+    // Reusable scratch objects to prevent per-frame GC allocations
+    this._dummyMatrix = new THREE.Matrix4();
+    this._pos = new THREE.Vector3();
+    this._quat = new THREE.Quaternion();
+    this._scale = new THREE.Vector3();
+    this._color = new THREE.Color();
+
+    // Initial rapid cascade reconstruction state
+    this.isCascading = false;
+    this.cascadeElapsed = 0;
+    this.cascadeDuration = 1.35;
+    this.targetBrickCount = 0;
+    this.currentEpochLength = 1800;
+
+    // Epoch completion wave animation state
+    this.celebrationWaveTime = -1;
+
+    // Distant completed epoch monument towers (max 2 for low memory)
+    this.historicalTowers = [];
+  }
+
+  /**
+   * Reconstruct the current epoch tower up to `completedBricks` with an intentional
+   * rising batch cascade animation.
+   */
+  buildExistingEpoch(epochLength, completedBricks, animateCascade = true) {
+    this.currentEpochLength = epochLength;
+    this.targetBrickCount = Math.min(completedBricks, this.maxInstances);
+    this.instancedMesh.count = this.targetBrickCount;
+
+    if (!animateCascade) {
+      this.isCascading = false;
+      this._updateAllInstances(1.0);
+    } else {
+      this.isCascading = true;
+      this.cascadeElapsed = 0;
+      this._updateAllInstances(0.01);
+    }
+  }
+
+  /**
+   * Immediately set a specific brick slot (used when a hero brick locks into place
+   * or when catching up missed background blocks).
+   */
+  setBrickAtIndex(epochIndex, epochLength, flashWhite = false) {
+    if (epochIndex < 0 || epochIndex >= this.maxInstances) return;
+    this.currentEpochLength = epochLength;
+
+    TowerLayout.getBrickTransform(epochIndex, epochLength, this._pos, this._quat, this._scale);
+    this._dummyMatrix.compose(this._pos, this._quat, this._scale);
+    this.instancedMesh.setMatrixAt(epochIndex, this._dummyMatrix);
+
+    if (flashWhite) {
+      this._color.setHex(0xfff3a1);
+    } else {
+      TowerLayout.getBrickColor(epochIndex, epochLength, this._color);
+    }
+    this.instancedMesh.setColorAt(epochIndex, this._color);
+
+    if (epochIndex + 1 > this.instancedMesh.count) {
+      this.instancedMesh.count = epochIndex + 1;
+      this.targetBrickCount = epochIndex + 1;
+    }
+
+    this.instancedMesh.instanceMatrix.needsUpdate = true;
+    if (this.instancedMesh.instanceColor) {
+      this.instancedMesh.instanceColor.needsUpdate = true;
+    }
+  }
+
+  restoreBrickColor(epochIndex, epochLength) {
+    if (epochIndex < 0 || epochIndex >= this.instancedMesh.count) return;
+    TowerLayout.getBrickColor(epochIndex, epochLength, this._color);
+    this.instancedMesh.setColorAt(epochIndex, this._color);
+    if (this.instancedMesh.instanceColor) {
+      this.instancedMesh.instanceColor.needsUpdate = true;
+    }
+  }
+
+  triggerEpochCompletionWave() {
+    this.celebrationWaveTime = 0;
+  }
+
+  /**
+   * Elegantly retire the finished epoch tower into the distant skyline and reset for the new epoch.
+   */
+  retireCompletedTowerToSkyline(oldEpochNumber, oldEpochLength) {
+    const cfg = TowerLayout.getConfig(oldEpochLength);
+    const silGeo = new THREE.BoxGeometry(
+      cfg.gridCols * cfg.brickWidth,
+      cfg.towerHeight,
+      cfg.gridRows * cfg.brickDepth
+    );
+    const silMat = new THREE.MeshStandardMaterial({
+      color: 0x0f293a,
+      emissive: 0x00f59b,
+      emissiveIntensity: 0.12,
+      roughness: 0.5,
+      transparent: true,
+      opacity: 0.65
+    });
+    const monument = new THREE.Mesh(silGeo, silMat);
+    const slotIdx = this.historicalTowers.length;
+    const angle = (slotIdx % 2 === 0 ? -1 : 1) * (0.55 + slotIdx * 0.25);
+    const dist = 16 + slotIdx * 4;
+    monument.position.set(
+      Math.sin(angle) * dist,
+      cfg.towerHeight * 0.5,
+      -Math.cos(angle) * dist
+    );
+    this.scene.add(monument);
+    this.historicalTowers.push(monument);
+
+    // Keep at most 2 historical monuments in memory
+    if (this.historicalTowers.length > 2) {
+      const oldest = this.historicalTowers.shift();
+      this.scene.remove(oldest);
+      oldest.geometry.dispose();
+      oldest.material.dispose();
+    }
+
+    // Clear active instanced tower for the new epoch
+    this.instancedMesh.count = 0;
+    this.targetBrickCount = 0;
+    this.instancedMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  update(dt) {
+    if (this.isCascading) {
+      this.cascadeElapsed += dt;
+      const p = Math.min(1.0, this.cascadeElapsed / this.cascadeDuration);
+      this._updateAllInstances(p);
+      if (p >= 1.0) {
+        this.isCascading = false;
+      }
+    }
+
+    if (this.celebrationWaveTime >= 0) {
+      this.celebrationWaveTime += dt;
+      const waveProgress = this.celebrationWaveTime / 2.2;
+      const total = this.instancedMesh.count;
+      for (let i = 0; i < total; i++) {
+        const ratio = i / Math.max(1, total);
+        const dist = Math.abs(ratio - waveProgress);
+        TowerLayout.getBrickColor(i, this.currentEpochLength, this._color);
+        if (dist < 0.15) {
+          this._color.lerp(new THREE.Color(0xffffff), 1.0 - dist / 0.15);
+        }
+        this.instancedMesh.setColorAt(i, this._color);
+      }
+      if (this.instancedMesh.instanceColor) {
+        this.instancedMesh.instanceColor.needsUpdate = true;
+      }
+      if (waveProgress > 1.25) {
+        this.celebrationWaveTime = -1;
+      }
+    }
+  }
+
+  _updateAllInstances(cascadeProgress) {
+    const count = this.targetBrickCount;
+    const len = this.currentEpochLength;
+
+    for (let i = 0; i < count; i++) {
+      TowerLayout.getBrickTransform(i, len, this._pos, this._quat, this._scale);
+
+      if (cascadeProgress < 1.0) {
+        const brickDelay = (i / Math.max(1, count)) * 0.65;
+        const localP = Math.max(0, Math.min(1, (cascadeProgress - brickDelay) / 0.35));
+        const eased = 1 - Math.pow(1 - localP, 3);
+        this._pos.y *= eased;
+        this._scale.multiplyScalar(Math.max(0.001, eased));
+      }
+
+      this._dummyMatrix.compose(this._pos, this._quat, this._scale);
+      this.instancedMesh.setMatrixAt(i, this._dummyMatrix);
+
+      TowerLayout.getBrickColor(i, len, this._color);
+      this.instancedMesh.setColorAt(i, this._color);
+    }
+
+    this.instancedMesh.instanceMatrix.needsUpdate = true;
+    if (this.instancedMesh.instanceColor) {
+      this.instancedMesh.instanceColor.needsUpdate = true;
+    }
+  }
+}
+
+/* ============================================================================
+ * 5. 4-STAGE HERO BLOCK ANIMATOR (Entrance -> Presentation -> Bezier Arc -> Lock)
+ * ============================================================================ */
+
+class HeroBlockAnimator {
+  constructor(scene, unitBrickGeo) {
+    this.scene = scene;
+    this.reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    this.group = new THREE.Group();
+    this.group.visible = false;
+    this.scene.add(this.group);
+
+    this.heroMat = new THREE.MeshStandardMaterial({
+      color: 0xffcc33,
+      roughness: 0.18,
+      metalness: 0.15,
+      emissive: 0xffaa00,
+      emissiveIntensity: 0.25
+    });
+
+    this.brickMesh = new THREE.Mesh(unitBrickGeo, this.heroMat);
+    this.brickMesh.castShadow = true;
+    this.group.add(this.brickMesh);
+
+    // Front face plate carrying the CanvasTexture with "#BLOCK_NUMBER"
+    this.labelPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.92, 0.82),
+      new THREE.MeshBasicMaterial({ transparent: false })
+    );
+    this.labelPlane.position.set(0, 0, 0.485);
+    this.brickMesh.add(this.labelPlane);
+
+    // Snap impact ring effect
+    const ringGeo = new THREE.RingGeometry(0.4, 0.58, 32);
+    ringGeo.rotateX(-Math.PI / 2);
+    this.lockRingMat = new THREE.MeshBasicMaterial({
+      color: 0x00f59b,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0
+    });
+    this.lockRing = new THREE.Mesh(ringGeo, this.lockRingMat);
+    this.lockRing.visible = false;
+    this.scene.add(this.lockRing);
+
+    this.active = false;
+    this.elapsed = 0;
+    this.duration = 3.2;
+    this.currentLabelTexture = null;
+
+    this.startPos = new THREE.Vector3();
+    this.controlPos = new THREE.Vector3();
+    this.targetPos = new THREE.Vector3();
+    this.startQuat = new THREE.Quaternion();
+    this.targetQuat = new THREE.Quaternion();
+    this.heroScale = new THREE.Vector3();
+    this.targetScale = new THREE.Vector3();
+    this.onComplete = null;
+  }
+
+  /**
+   * Launch the 4-stage Hero Brick animation for a newly detected CKB block.
+   */
+  animateNewBrick(headerInfo, camera, controlsTarget, onComplete) {
+    if (this.currentLabelTexture) {
+      this.currentLabelTexture.dispose();
+    }
+    this.currentLabelTexture = BrickFactory.createHeroLabelTexture(headerInfo.blockNumberFormatted);
+    this.labelPlane.material.map = this.currentLabelTexture;
+    this.labelPlane.material.needsUpdate = true;
+
+    // Destination slot in the tower
+    TowerLayout.getBrickTransform(
+      headerInfo.epochIndex,
+      headerInfo.epochLength,
+      this.targetPos,
+      this.targetQuat,
+      this.targetScale
+    );
+
+    // Position Stage 1 & 2 right in front of the camera for clear reading
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    const camRight = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
+    const camUp = new THREE.Vector3().crossVectors(camRight, camDir).normalize();
+
+    this.startPos.copy(camera.position)
+      .addScaledVector(camDir, 4.2)
+      .addScaledVector(camUp, 0.15);
+
+    // High arc control point for Stage 3 cubic/quadratic Bezier trajectory
+    this.controlPos.copy(this.startPos).lerp(this.targetPos, 0.5);
+    this.controlPos.y = Math.max(this.startPos.y, this.targetPos.y) + 3.2;
+
+    // Face the camera during Hero presentation
+    const lookMat = new THREE.Matrix4().lookAt(camera.position, this.startPos, camUp);
+    this.startQuat.setFromRotationMatrix(lookMat);
+
+    this.heroScale.set(1.35, 0.72, 0.95);
+
+    this.duration = this.reducedMotion ? 1.1 : 3.2;
+    this.elapsed = 0;
+    this.active = true;
+    this.group.visible = true;
+    this.onComplete = onComplete;
+  }
+
+  update(dt) {
+    if (this.lockRing.visible) {
+      this.lockRing.scale.addScalar(dt * 5.5);
+      this.lockRingMat.opacity -= dt * 1.8;
+      if (this.lockRingMat.opacity <= 0.02) {
+        this.lockRing.visible = false;
+      }
+    }
+
+    if (!this.active) return;
+
+    this.elapsed += dt;
+    const t = Math.min(1.0, this.elapsed / this.duration);
+
+    if (t < 0.18) {
+      // Stage 1: Hero Entrance (pop in with elastic settle)
+      const p = t / 0.18;
+      const easeOutBack = 1 + 1.7 * Math.pow(p - 1, 3) + 0.7 * Math.pow(p - 1, 2);
+      this.group.position.copy(this.startPos);
+      this.group.quaternion.copy(this.startQuat);
+      this.group.scale.copy(this.heroScale).multiplyScalar(Math.max(0.01, easeOutBack));
+    } else if (t < 0.56) {
+      // Stage 2: Presentation hold in front of viewer with subtle float & tilt
+      const p = (t - 0.18) / 0.38;
+      this.group.position.copy(this.startPos);
+      this.group.position.y += Math.sin(p * Math.PI * 2) * 0.08;
+      this.group.quaternion.copy(this.startQuat);
+      this.group.rotateY(Math.sin(p * Math.PI * 2) * 0.14);
+      this.group.scale.copy(this.heroScale);
+    } else if (t < 0.90) {
+      // Stage 3: Curved Bezier flight from foreground into its exact tower slot
+      const p = (t - 0.56) / 0.34;
+      const easeInOut = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+
+      // Quadratic Bezier interpolation: (1-u)^2 * P0 + 2(1-u)u * P1 + u^2 * P2
+      const u = easeInOut;
+      const invU = 1 - u;
+      this.group.position.set(0, 0, 0)
+        .addScaledVector(this.startPos, invU * invU)
+        .addScaledVector(this.controlPos, 2 * invU * u)
+        .addScaledVector(this.targetPos, u * u);
+
+      this.group.quaternion.copy(this.startQuat).slerp(this.targetQuat, easeInOut);
+      this.group.scale.copy(this.heroScale).lerp(this.targetScale, easeInOut);
+    } else {
+      // Stage 4: Physical compression bounce & snap into tower slot
+      const p = (t - 0.90) / 0.10;
+      const bounce = Math.sin(p * Math.PI) * 0.12;
+      this.group.position.copy(this.targetPos);
+      this.group.position.y += bounce * this.targetScale.y;
+      this.group.quaternion.copy(this.targetQuat);
+      this.group.scale.copy(this.targetScale);
+    }
+
+    if (t >= 1.0) {
+      this.active = false;
+      this.group.visible = false;
+
+      // Trigger subtle lock ring wave at the target slot
+      this.lockRing.position.copy(this.targetPos);
+      this.lockRing.scale.set(1, 1, 1);
+      this.lockRingMat.opacity = 0.85;
+      this.lockRing.visible = true;
+
+      if (this.onComplete) {
+        const cb = this.onComplete;
+        this.onComplete = null;
+        cb();
+      }
+    }
+  }
+}
+
+/* ============================================================================
+ * 6. RESILIENT CKB NETWORK CLIENT (WebSocket + Polling + Reorg & Catchup)
+ * ============================================================================ */
+
+class CKBRpcClient {
+  constructor({ onInitialEpoch, onNewTip, onCatchupRange, onStatus }) {
+    this.defaultHttpUrl = 'https://mainnet.ckb.dev/';
+    this.secondaryHttpUrl = 'https://mainnet.ckbapp.dev/';
+    this.defaultWsUrl = 'wss://mainnet.ckb.dev/ws';
+
+    this.httpUrl = localStorage.getItem('ckb_bricks_http_url') || this.defaultHttpUrl;
+    this.wsUrl = localStorage.getItem('ckb_bricks_ws_url') || this.defaultWsUrl;
+
+    this.onInitialEpoch = onInitialEpoch;
+    this.onNewTip = onNewTip;
+    this.onCatchupRange = onCatchupRange;
+    this.onStatus = onStatus;
+
+    this.lastSeenBlockNumber = null; // BigInt
+    this.lastSeenBlockHash = null;
+    this.currentEpochNumber = null;
+    this.currentEpochIndex = null;
+    this.currentEpochLength = null;
+
+    this.isFetching = false;
+    this.ws = null;
+    this.wsActive = false;
+    this.pollInterval = null;
+  }
+
+  start() {
+    this.stop();
+    this.onStatus('CONNECTING', 'CONNECTING TO NERVOS CKB…');
+    this.fetchTipHeader();
+    this._connectWebSocket();
+    this.pollInterval = setInterval(() => this.fetchTipHeader(), 3000);
+  }
+
+  stop() {
+    if (this.pollInterval) clearInterval(this.pollInterval);
+    this.pollInterval = null;
+    this.wsActive = false;
+    if (this.ws) {
+      try {
+        this.ws.onclose = null;
+        this.ws.close();
+      } catch {}
+      this.ws = null;
+    }
+  }
+
+  setEndpoints(httpUrl, wsUrl) {
+    this.httpUrl = (httpUrl || this.defaultHttpUrl).trim();
+    this.wsUrl = (wsUrl || this.defaultWsUrl).trim();
+    localStorage.setItem('ckb_bricks_http_url', this.httpUrl);
+    localStorage.setItem('ckb_bricks_ws_url', this.wsUrl);
+    this.lastSeenBlockNumber = null;
+    this.lastSeenBlockHash = null;
+    this.currentEpochNumber = null;
+    this.start();
+  }
+
+  resetDefaults() {
+    localStorage.removeItem('ckb_bricks_http_url');
+    localStorage.removeItem('ckb_bricks_ws_url');
+    this.httpUrl = this.defaultHttpUrl;
+    this.wsUrl = this.defaultWsUrl;
+    this.lastSeenBlockNumber = null;
+    this.lastSeenBlockHash = null;
+    this.currentEpochNumber = null;
+    this.start();
+  }
+
+  async fetchTipHeader() {
+    if (this.isFetching) return;
+    this.isFetching = true;
+
+    const candidates = [this.httpUrl];
+    if (this.httpUrl === this.defaultHttpUrl) {
+      candidates.push(this.secondaryHttpUrl);
+    }
+
+    let rawHeader = null;
+    for (const url of candidates) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5500);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: Date.now(),
+            jsonrpc: '2.0',
+            method: 'get_tip_header',
+            params: []
+          }),
+          signal: ctrl.signal
+        });
+        clearTimeout(timer);
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data && data.result) {
+          rawHeader = data.result;
+          break;
+        }
+      } catch {
+        clearTimeout(timer);
+      }
+    }
+
+    this.isFetching = false;
+
+    if (!rawHeader) {
+      if (!this.wsActive) {
+        this.onStatus('OFFLINE', 'OFFLINE • RETRYING RPC…');
+      }
+      return;
+    }
+
+    this.onStatus('CONNECTED', this.wsActive ? 'CONNECTED • LIVE WSS' : 'CONNECTED • LIVE RPC');
+    this.handleNewTip(rawHeader);
+  }
+
+  _connectWebSocket() {
+    if (!this.wsUrl || (!this.wsUrl.startsWith('ws://') && !this.wsUrl.startsWith('wss://'))) return;
+    try {
+      this.ws = new WebSocket(this.wsUrl);
+      this.ws.onopen = () => {
+        this.ws.send(JSON.stringify({
+          id: 1,
+          jsonrpc: '2.0',
+          method: 'subscribe',
+          params: ['new_tip_header']
+        }));
+      };
+      this.ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.id === 1 && msg.result) {
+            this.wsActive = true;
+            this.onStatus('CONNECTED', 'CONNECTED • LIVE WSS');
+            return;
+          }
+          if (msg.method === 'subscribe' && msg.params && msg.params.result) {
+            const hdr = typeof msg.params.result === 'string'
+              ? JSON.parse(msg.params.result)
+              : msg.params.result;
+            this.handleNewTip(hdr);
+          }
+        } catch {}
+      };
+      this.ws.onclose = () => {
+        this.wsActive = false;
+      };
+    } catch {}
+  }
+
+  handleNewTip(rawHeader) {
+    const parsed = EpochDecoder.parseHeader(rawHeader, false);
+    if (!parsed) return; // Malformed header safely ignored
+
+    // Duplicate tip check
+    if (this.lastSeenBlockHash === parsed.hash) return;
+
+    // 1. First load -> reconstruct existing epoch tower
+    if (this.lastSeenBlockNumber === null) {
+      this._recordState(parsed);
+      this.onInitialEpoch(parsed);
+      return;
+    }
+
+    // 2. Reorg / same or lower block height with different hash -> reconcile cleanly
+    if (parsed.blockBigInt <= this.lastSeenBlockNumber) {
+      this._recordState(parsed);
+      this.onInitialEpoch(parsed);
+      return;
+    }
+
+    const prevEpoch = this.currentEpochNumber;
+    const prevIndex = this.currentEpochIndex;
+    this._recordState(parsed);
+
+    // 3. New epoch started!
+    if (parsed.epochNumber !== prevEpoch) {
+      this.onNewTip(parsed, true);
+      return;
+    }
+
+    // 4. Multiple blocks missed (e.g. mobile tab resumed) -> catch up intermediate bricks rapidly
+    if (parsed.epochIndex > prevIndex + 1) {
+      this.onCatchupRange(prevIndex + 1, parsed.epochIndex - 1, parsed.epochLength);
+    }
+
+    // 5. Animate the newest canonical block with the 4-stage Hero Brick
+    this.onNewTip(parsed, false);
+  }
+
+  _recordState(parsed) {
+    this.lastSeenBlockNumber = parsed.blockBigInt;
+    this.lastSeenBlockHash = parsed.hash;
+    this.currentEpochNumber = parsed.epochNumber;
+    this.currentEpochIndex = parsed.epochIndex;
+    this.currentEpochLength = parsed.epochLength;
+  }
+}
+
+/* ============================================================================
+ * 7. APPLICATION CONTROLLER, ENVIRONMENT & CAMERA FRAMING
+ * ============================================================================ */
+
+class EpochTowerApp {
+  constructor() {
+    this.container = document.getElementById('canvas-container');
+    this.heroQueue = [];
+    this.latestHeader = null;
+
+    this._initSceneAndRenderer();
+    this._initLightingAndPlatform();
+
+    this.unitBrickGeo = BrickFactory.createUnitBrickGeometry();
+    this.towerRenderer = new TowerRenderer(this.scene, this.unitBrickGeo);
+    this.heroAnimator = new HeroBlockAnimator(this.scene, this.unitBrickGeo);
+
+    this.rpcClient = new CKBRpcClient({
+      onInitialEpoch: (header) => this._handleInitialEpoch(header),
+      onNewTip: (header, isEpochRollover) => this._enqueueNewBlock(header, isEpochRollover),
+      onCatchupRange: (startIdx, endIdx, epochLen) => {
+        for (let idx = startIdx; idx <= endIdx; idx++) {
+          this.towerRenderer.setBrickAtIndex(idx, epochLen, false);
+        }
+      },
+      onStatus: (state, text) => this._updateConnectionUI(state, text)
+    });
+
+    this._bindUI();
+    this.rpcClient.start();
+
+    this.clock = new THREE.Clock();
+    this._renderLoop = this._renderLoop.bind(this);
+    requestAnimationFrame(this._renderLoop);
+  }
+
+  _initSceneAndRenderer() {
+    this.scene = new THREE.Scene();
+    this.scene.fog = new THREE.FogExp2(0x070b12, 0.018);
+
+    this.camera = new THREE.PerspectiveCamera(
+      44,
+      window.innerWidth / Math.max(1, window.innerHeight),
+      0.1,
+      140
+    );
+    this.camera.position.set(14, 11, 18);
+
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.container.appendChild(this.renderer.domElement);
+
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.target.set(0, 4.5, 0);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.06;
+    this.controls.enablePan = false;
+    this.controls.minDistance = 7;
+    this.controls.maxDistance = 42;
+    this.controls.minPolarAngle = 0.18;
+    this.controls.maxPolarAngle = Math.PI * 0.485;
+    this.controls.autoRotate = true;
+    this.controls.autoRotateSpeed = 0.45;
+
+    window.addEventListener('resize', () => this._onResize());
+    window.addEventListener('orientationchange', () => setTimeout(() => this._onResize(), 150));
+  }
+
+  _initLightingAndPlatform() {
+    const hemi = new THREE.HemisphereLight(0xdbeafe, 0x091326, 0.85);
+    this.scene.add(hemi);
+
+    const keyLight = new THREE.DirectionalLight(0xfff7ed, 2.4);
+    keyLight.position.set(14, 26, 16);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 1024;
+    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.camera.near = 2;
+    keyLight.shadow.camera.far = 60;
+    const d = 14;
+    keyLight.shadow.camera.left = -d;
+    keyLight.shadow.camera.right = d;
+    keyLight.shadow.camera.top = d;
+    keyLight.shadow.camera.bottom = -d;
+    keyLight.shadow.bias = -0.001;
+    this.scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0x00f59b, 1.15);
+    rimLight.position.set(-16, 12, -14);
+    this.scene.add(rimLight);
+
+    // Architectural Exhibition Pedestal Platform
+    const baseGroup = new THREE.Group();
+
+    const plinthMat = new THREE.MeshStandardMaterial({
+      color: 0x111a2b,
+      roughness: 0.35,
+      metalness: 0.65
+    });
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(5.6, 6.4, 0.9, 48), plinthMat);
+    plinth.position.y = -0.45;
+    plinth.receiveShadow = true;
+    baseGroup.add(plinth);
+
+    // Glowing CKB Emerald Trim Ring around the pedestal
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00f59b });
+    const glowRing = new THREE.Mesh(new THREE.TorusGeometry(5.65, 0.045, 12, 64), ringMat);
+    glowRing.rotation.x = Math.PI / 2;
+    glowRing.position.y = -0.02;
+    baseGroup.add(glowRing);
+
+    // Subtle reflective exhibition floor
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x060a12,
+      roughness: 0.4,
+      metalness: 0.3
+    });
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(45, 64), floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.9;
+    floor.receiveShadow = true;
+    baseGroup.add(floor);
+
+    this.scene.add(baseGroup);
+  }
+
+  _handleInitialEpoch(header) {
+    this.latestHeader = header;
+    this.heroQueue.length = 0;
+    this.towerRenderer.buildExistingEpoch(header.epochLength, header.completedBricks, true);
+    this.updateCameraForTower(header.epochIndex, header.epochLength, true);
+    this.updateHUD(header, false);
+  }
+
+  _enqueueNewBlock(header, isEpochRollover) {
+    this.heroQueue.push({ header, isEpochRollover });
+    this._processHeroQueue();
+  }
+
+  _processHeroQueue() {
+    if (this.heroAnimator.active || this.heroQueue.length === 0) return;
+
+    const { header, isEpochRollover } = this.heroQueue.shift();
+
+    if (isEpochRollover && this.latestHeader) {
+      // Transition completed previous tower into the distant skyline first
+      this.towerRenderer.retireCompletedTowerToSkyline(
+        this.latestHeader.epochNumber,
+        this.latestHeader.epochLength
+      );
+    }
+
+    this.latestHeader = header;
+    this.updateHUD(header, true);
+    this.updateCameraForTower(header.epochIndex, header.epochLength, false);
+
+    this.heroAnimator.animateNewBrick(
+      header,
+      this.camera,
+      this.controls.target,
+      () => {
+        // Lock the brick into the InstancedMesh tower
+        this.towerRenderer.setBrickAtIndex(header.epochIndex, header.epochLength, true);
+        setTimeout(() => {
+          this.towerRenderer.restoreBrickColor(header.epochIndex, header.epochLength);
+        }, 650);
+
+        // Check if this was the final block of the epoch!
+        if (header.epochIndex === header.epochLength - 1) {
+          this._triggerEpochCelebration(header);
+        }
+
+        this._processHeroQueue();
+      }
+    );
+  }
+
+  _triggerEpochCelebration(header) {
+    this.towerRenderer.triggerEpochCompletionWave();
+    const banner = document.getElementById('celebration-banner');
+    document.getElementById('celebration-title').textContent =
+      `EPOCH ${header.epochNumber.toLocaleString()} COMPLETE`;
+    document.getElementById('celebration-sub').textContent =
+      `${header.epochLength.toLocaleString()} BLOCKS CONSTRUCTED`;
+    banner.classList.add('visible');
+    setTimeout(() => banner.classList.remove('visible'), 6000);
+  }
+
+  updateCameraForTower(epochIndex, epochLength, immediate = false) {
+    const cfg = TowerLayout.getConfig(epochLength);
+    const currentLayer = Math.floor(epochIndex / cfg.bricksPerLayer);
+    const activeHeight = Math.max(2.5, (currentLayer + 1) * cfg.brickHeight);
+
+    this.targetLookY = Math.min(cfg.towerHeight * 0.55, activeHeight * 0.55);
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    const portraitBoost = aspect < 0.75 ? 1.28 : 1.0;
+    const idealDist = Math.max(14, (activeHeight * 1.15 + 9) * portraitBoost);
+
+    if (immediate) {
+      this.controls.target.set(0, this.targetLookY, 0);
+      const dir = this.camera.position.clone().sub(this.controls.target).normalize();
+      this.camera.position.copy(this.controls.target).addScaledVector(dir, idealDist);
+    }
+  }
+
+  updateHUD(header, pulse) {
+    if (!header) return;
+    document.getElementById('hud-block-num').textContent = `#${header.blockNumberFormatted}`;
+    document.getElementById('hud-epoch-num').textContent = `EPOCH ${header.epochNumber.toLocaleString()}`;
+
+    const pct = ((header.completedBricks / header.epochLength) * 100).toFixed(1);
+    document.getElementById('hud-progress-fill').style.width = `${pct}%`;
+    document.getElementById('hud-progress-text').textContent =
+      `BRICKS: ${header.completedBricks.toLocaleString()} / ${header.epochLength.toLocaleString()}`;
+    document.getElementById('hud-progress-pct').textContent = `${pct}%`;
+
+    const shortHash = header.hash.length > 16
+      ? `${header.hash.slice(0, 8)}…${header.hash.slice(-6)}`
+      : header.hash;
+    document.getElementById('hud-hash').textContent = `HASH: ${shortHash}`;
+
+    const remaining = Math.max(0, header.epochLength - header.completedBricks);
+    document.getElementById('hud-remaining').textContent = `REMAINING: ${remaining.toLocaleString()}`;
+
+    const demoTag = document.getElementById('demo-tag');
+    demoTag.classList.toggle('visible', Boolean(header.isDemo));
+
+    if (pulse) {
+      const card = document.getElementById('hud-card');
+      card.classList.add('pulse');
+      setTimeout(() => card.classList.remove('pulse'), 2200);
+    }
+  }
+
+  _updateConnectionUI(state, label) {
+    const dot = document.getElementById('status-dot');
+    const text = document.getElementById('status-label');
+    text.textContent = label;
+    dot.className = 'status-dot';
+    if (state === 'CONNECTED') dot.classList.add('connected');
+    else if (state === 'OFFLINE') dot.classList.add('offline');
+  }
+
+  _bindUI() {
+    document.getElementById('btn-reset-cam').addEventListener('click', () => {
+      if (this.latestHeader) {
+        this.updateCameraForTower(this.latestHeader.epochIndex, this.latestHeader.epochLength, true);
+      }
+    });
+
+    const modal = document.getElementById('modal-settings');
+    const inputRpc = document.getElementById('input-rpc-url');
+    const inputWs = document.getElementById('input-ws-url');
+
+    document.getElementById('btn-settings').addEventListener('click', () => {
+      inputRpc.value = this.rpcClient.httpUrl;
+      inputWs.value = this.rpcClient.wsUrl;
+      modal.classList.add('open');
+    });
+    document.getElementById('btn-close-settings').addEventListener('click', () => {
+      modal.classList.remove('open');
+    });
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.remove('open');
+    });
+
+    document.getElementById('btn-save-rpc').addEventListener('click', () => {
+      this.rpcClient.setEndpoints(inputRpc.value, inputWs.value);
+      modal.classList.remove('open');
+    });
+
+    document.getElementById('btn-reset-rpc').addEventListener('click', () => {
+      this.rpcClient.resetDefaults();
+      modal.classList.remove('open');
+    });
+
+    // Optional clearly-labelled DEMO buttons for testing Hero Brick & Epoch Rollover
+    document.getElementById('btn-demo-brick').addEventListener('click', () => {
+      modal.classList.remove('open');
+      const base = this.latestHeader || {
+        blockBigInt: 20820500n,
+        epochNumber: 15168,
+        epochIndex: 620,
+        epochLength: 1800
+      };
+      const nextIndex = Math.min(base.epochLength - 1, base.epochIndex + 1);
+      const nextBlockBig = base.blockBigInt + 1n;
+      const packedEpoch = (BigInt(base.epochLength) << 40n) | (BigInt(nextIndex) << 24n) | BigInt(base.epochNumber);
+      const demoHeader = EpochDecoder.parseHeader({
+        hash: '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
+        number: '0x' + nextBlockBig.toString(16),
+        epoch: '0x' + packedEpoch.toString(16),
+        timestamp: '0x' + Date.now().toString(16)
+      }, true);
+      if (demoHeader) this._enqueueNewBlock(demoHeader, false);
+    });
+
+    document.getElementById('btn-demo-epoch').addEventListener('click', () => {
+      modal.classList.remove('open');
+      const base = this.latestHeader || {
+        blockBigInt: 20820500n,
+        epochNumber: 15168,
+        epochIndex: 1798,
+        epochLength: 1800
+      };
+      // Trigger final block of current epoch followed by block #0 of next epoch
+      const finalBlockBig = base.blockBigInt + 1n;
+      const finalPacked = (BigInt(base.epochLength) << 40n) | (BigInt(base.epochLength - 1) << 24n) | BigInt(base.epochNumber);
+      const finalHdr = EpochDecoder.parseHeader({
+        hash: '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
+        number: '0x' + finalBlockBig.toString(16),
+        epoch: '0x' + finalPacked.toString(16),
+        timestamp: '0x' + Date.now().toString(16)
+      }, true);
+
+      const newEpochLen = 1680;
+      const firstNewBig = finalBlockBig + 1n;
+      const firstNewPacked = (BigInt(newEpochLen) << 40n) | (0n << 24n) | BigInt(base.epochNumber + 1);
+      const firstNewHdr = EpochDecoder.parseHeader({
+        hash: '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
+        number: '0x' + firstNewBig.toString(16),
+        epoch: '0x' + firstNewPacked.toString(16),
+        timestamp: '0x' + Date.now().toString(16)
+      }, true);
+
+      if (finalHdr) this._enqueueNewBlock(finalHdr, false);
+      if (firstNewHdr) this._enqueueNewBlock(firstNewHdr, true);
+    });
+  }
+
+  _onResize() {
+    this.camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  _renderLoop() {
+    requestAnimationFrame(this._renderLoop);
+    if (document.hidden) return;
+
+    const dt = Math.min(this.clock.getDelta(), 0.1);
+
+    if (this.targetLookY !== undefined) {
+      this.controls.target.y += (this.targetLookY - this.controls.target.y) * dt * 2.0;
+    }
+
+    this.towerRenderer.update(dt);
+    this.heroAnimator.update(dt);
+
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  new EpochTowerApp();
+});
+</script>
+</body>
+</html>

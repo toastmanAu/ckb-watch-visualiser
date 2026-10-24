@@ -34,18 +34,25 @@ A handcrafted 3D Black Forest Chalet Cuckoo Clock keeping real-time local device
 | :---: | :---: | :---: |
 | <img src="screenshots/emulator_cuckoo_idle.png" width="220" alt="Cuckoo Clock Idle" /> | <img src="screenshots/emulator_cuckoo_active.png" width="220" alt="Cuckoo Bird Emerging" /> | <img src="screenshots/emulator_cuckoo_details.png" width="220" alt="Block & Epoch Details" /> |
 
+### 4. Exhibition: CKB Epoch Brick Tower
+Reconstructs the active Nervos CKB Epoch as a 3D architectural tower of interlocking LEGO-style plastic bricks (`epochIndex + 1` out of `epochLength`). Every newly mined canonical block materializes front-and-center as a golden Hero Brick with `#BLOCK_NUMBER` printed on its face, then flies along a curved Bézier trajectory to snap and lock onto its deterministic slot at the top of the tower.
+
+| Live Epoch Tower | Hero Brick Entrance | Epoch Progress Inspector |
+| :---: | :---: | :---: |
+| <img src="screenshots/watch_bricks_tower.png" width="220" alt="Epoch Brick Tower" /> | <img src="screenshots/watch_bricks_hero.png" width="220" alt="Hero Brick Presentation" /> | <img src="screenshots/watch_bricks_details.png" width="220" alt="Epoch Details" /> |
+
 ---
 
 ## 🌟 Core Architecture
 
 ### Dual-Engine Design
-1. **Native Wear OS 60 FPS Canvas Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`):
+1. **Native Wear OS 60 FPS Canvas Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`, `LegoTowerVisualiserView.kt`):
    - Standard Android `WebView` is omitted on Wear OS devices to conserve RAM and storage.
    - We engineered a zero-overhead, hardware-accelerated native 2D/3D renderer running at a locked 60 FPS on the Pixel Watch 3 GPU.
    - Direct coroutine-based JSON-RPC streaming over Wi-Fi/Bluetooth proxy with minimal battery consumption.
-2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`):
+2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`, `bricks.html`):
    - Standalone single-file HTML/CSS/JavaScript implementations.
-   - Procedural 3D geometry, refractive Fresnel glass materials, hinged mechanical clockwork, particle vortices, and Web Audio API sound synthesis.
+   - Procedural 3D geometry, `InstancedMesh` LEGO brick rendering, refractive Fresnel glass materials, hinged mechanical clockwork, particle vortices, and Web Audio API sound synthesis.
    - Smooth museum-turntable auto-orbit with pinch-to-zoom and touch drag controls.
 
 ---
@@ -78,7 +85,7 @@ $$\text{newCellCount} = \sum_{\text{tx} \in \text{block.transactions}} \text{tx.
 - **Haptic Engine (`VibratorManager`)**:
   - Subtle tactile ticks on rotary crown increments.
   - Rhythmic double-pulses upon new block commits and cuckoo calls.
-  - Crisp haptic clicks when inspecting a Cell specimen or block plaque.
+  - Crisp haptic clicks when inspecting a Cell specimen, block plaque, or locking an Epoch brick.
 - **AMOLED Power Optimization**:
   - Pure `#000000` black backgrounds to minimize power draw on wearable OLED panels.
   - Capped pixel ratios and frame throttling when the screen is dimmed.
@@ -94,6 +101,7 @@ watch-visualiser/
 ├── index.html                   # CKB Cell Laboratory (Three.js Web Exhibit)
 ├── bonsai.html                  # Japanese Maple Bonsai (Three.js Web Exhibit)
 ├── cuckoo.html                  # Mechanical Cuckoo Clock (Three.js Web Exhibit)
+├── bricks.html                  # Epoch LEGO Brick Tower (Three.js Web Exhibit)
 ├── three.min.js                 # Bundled Three.js engine for offline execution
 ├── server.py                    # Zero-dependency local dev server with auto port detection
 ├── build.gradle.kts             # Root Gradle build script
@@ -108,7 +116,8 @@ watch-visualiser/
         ├── assets/visualisers/  # Bundled offline visualizer web apps
         │   ├── ckb-cell-lab/index.html
         │   ├── ckb-bonsai/index.html
-        │   └── ckb-cuckoo/index.html
+        │   ├── ckb-cuckoo/index.html
+        │   └── ckb-bricks/index.html
         ├── java/network/nervos/watchvisualiser/
         │   ├── MainActivity.kt        # Rotary-scrollable Wear OS Compose menu
         │   ├── VisualiserActivity.kt  # Native visualizer activity dispatcher
@@ -118,9 +127,10 @@ watch-visualiser/
         │   │   ├── VisualiserRegistry.kt # Extensible visualizer catalog
         │   │   └── AppPreferences.kt     # SharedPreferences store
         │   └── ui/
-        │       ├── LabVisualiserView.kt    # 60 FPS Native Cell Lab renderer
-        │       ├── BonsaiVisualiserView.kt # 60 FPS Native Bonsai renderer
-        │       └── CuckooVisualiserView.kt # 60 FPS Native Cuckoo Clock renderer
+        │       ├── LabVisualiserView.kt       # 60 FPS Native Cell Lab renderer
+        │       ├── BonsaiVisualiserView.kt    # 60 FPS Native Bonsai renderer
+        │       ├── CuckooVisualiserView.kt    # 60 FPS Native Cuckoo Clock renderer
+        │       └── LegoTowerVisualiserView.kt # 60 FPS Native Epoch Brick Tower renderer
         └── res/                       # Vector drawables, colors, strings
 ```
 
@@ -137,8 +147,9 @@ Open in any browser:
 - **CKB Cell Laboratory**: [http://localhost:8084/](http://localhost:8084/)
 - **Japanese Maple Bonsai**: [http://localhost:8084/bonsai.html](http://localhost:8084/bonsai.html)
 - **Mechanical Cuckoo Clock**: [http://localhost:8084/cuckoo.html](http://localhost:8084/cuckoo.html)
+- **Epoch Brick Tower**: [http://localhost:8084/bricks.html](http://localhost:8084/bricks.html)
 
-*Tip: Click the gear icon $\rightarrow$ **"TEST BLOCK"** or **"DEMO CUCKOO"** to simulate an immediate CKB block event.*
+*Tip: Click the gear icon $\rightarrow$ **"TEST BLOCK"**, **"DEMO CUCKOO"**, or **"DEMO NEW BLOCK"** to simulate an immediate CKB block event.*
 
 ---
 
@@ -184,6 +195,7 @@ The [`VisualiserRegistry.kt`](app/src/main/java/network/nervos/watchvisualiser/d
 - [x] **CKB Cell Laboratory** (FLAGSHIP) — Microscopic UTXO organisms swirling into the Liquid of Knowledge.
 - [x] **Japanese Maple Bonsai** (ACTIVE) — Newly created Cells falling as vibrant autumn leaves.
 - [x] **Mechanical Cuckoo Clock** (ACTIVE) — Black Forest chalet clock that chimes & reveals decoded Epoch state on every canonical block.
+- [x] **Epoch Brick Tower** (ACTIVE) — Live CKB Epoch constructed block-by-block from interlocking 3D LEGO-style bricks.
 - [ ] **Fiber Network Star Map** (COMING SOON) — Real-time P2P lightning payment channel routing.
 - [ ] **Mempool Particle Collider** (COMING SOON) — High-energy unconfirmed transaction collisions.
 
