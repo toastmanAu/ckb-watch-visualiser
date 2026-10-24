@@ -27,39 +27,47 @@ Newly created CKB Cells detach as vibrant autumn maple leaves that gracefully fl
 | :---: | :---: | :---: |
 | <img src="screenshots/emulator_menu_scrolled.png" width="220" alt="Bonsai in Menu" /> | <img src="screenshots/emulator_bonsai_opened.png" width="220" alt="Bonsai Scene" /> | <img src="screenshots/emulator_leaves_falling.png" width="220" alt="Falling Leaves Event" /> |
 
+### 3. Exhibition: CKB Mechanical Cuckoo Clock
+A handcrafted 3D Black Forest Chalet Cuckoo Clock keeping real-time local device time with a continuously swinging brass pendulum and dual pine-cone weights. Whenever a new canonical CKB block arrives, the internal brass gears engage, the hinged wooden doors swing open, the cuckoo bird emerges on its rail to perform a two-note pipe call, and the lower brass plaque illuminates with the block height, transaction count (including cellbase), and RFC-0027 decoded Epoch progress.
+
+| Idle Local-Time Clock | Cuckoo Bird Block Arrival | Block & Decoded Epoch Inspector |
+| :---: | :---: | :---: |
+| <img src="screenshots/emulator_cuckoo_idle.png" width="220" alt="Cuckoo Clock Idle" /> | <img src="screenshots/emulator_cuckoo_active.png" width="220" alt="Cuckoo Bird Emerging" /> | <img src="screenshots/emulator_cuckoo_details.png" width="220" alt="Block & Epoch Details" /> |
+
 ---
 
 ## 🌟 Core Architecture
 
 ### Dual-Engine Design
-1. **Native Wear OS 60 FPS Canvas Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`):
+1. **Native Wear OS 60 FPS Canvas Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`):
    - Standard Android `WebView` is omitted on Wear OS devices to conserve RAM and storage.
    - We engineered a zero-overhead, hardware-accelerated native 2D/3D renderer running at a locked 60 FPS on the Pixel Watch 3 GPU.
    - Direct coroutine-based JSON-RPC streaming over Wi-Fi/Bluetooth proxy with minimal battery consumption.
-2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`):
+2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`):
    - Standalone single-file HTML/CSS/JavaScript implementations.
-   - Procedural 3D geometry, refractive Fresnel glass materials, particle vortices, and Web Audio API sound synthesis.
+   - Procedural 3D geometry, refractive Fresnel glass materials, hinged mechanical clockwork, particle vortices, and Web Audio API sound synthesis.
    - Smooth museum-turntable auto-orbit with pinch-to-zoom and touch drag controls.
 
 ---
 
-## 🧬 CKB Cell Model Implementation
+## 🧬 CKB Cell Model & Epoch Implementation
 
-This visualizer strictly adheres to the fundamental architecture of Nervos CKB:
+This visualizer suite strictly adheres to the fundamental architecture of Nervos CKB:
 
 > **Every entry in every transaction's `outputs` array is one newly created CKB Cell.**
 
 $$\text{newCellCount} = \sum_{\text{tx} \in \text{block.transactions}} \text{tx.outputs.length}$$
 
-- **Comprehensive Scope**: Counts all transaction outputs, including the cellbase transaction.
+- **Comprehensive Scope**: Counts all transactions and transaction outputs, including the cellbase transaction.
 - **Excluded Non-Outputs**: Ignores inputs, cellDeps, header deps, witnesses, and `outputs_data`.
 - **Identity by OutPoint**: Cells are strictly identified by OutPoint (`${txHash}:${outputIndex}`).
 - **Capacity Conversion**: Hex Shannons parsed using arbitrary-precision arithmetic:
   $$1\text{ CKB} = 100,000,000\text{ Shannons}$$
-- **Deterministic Trait Generation**:
-  - Capacity scales organism volume or leaf mass logarithmically.
-  - Presence of a Type Script generates a distinctive glowing organelle ring or golden hue.
-  - Data payload ($>0\text{ bytes}$) generates visible internal granules.
+- **RFC-0027 Packed Epoch Decoding**:
+  - `epochNumber = epochRaw & 0xFFFFFF` (bits 0..23)
+  - `epochIndex = (epochRaw >> 24) & 0xFFFF` (bits 24..39)
+  - `epochLength = (epochRaw >> 40) & 0xFFFF` (bits 40..55)
+- **FIFO Block Event Queue**: Rapidly arriving blocks are queued and deduplicated by block hash so no block animation is ever dropped or overlapped.
 
 ---
 
@@ -69,8 +77,8 @@ $$\text{newCellCount} = \sum_{\text{tx} \in \text{block.transactions}} \text{tx.
   - Physical watch crown inputs (`AXIS_SCROLL`) smoothly orbit the 3D camera around the centerpiece with realistic rotational inertia.
 - **Haptic Engine (`VibratorManager`)**:
   - Subtle tactile ticks on rotary crown increments.
-  - Rhythmic double-pulses upon new block commits.
-  - Crisp haptic clicks when inspecting a Cell specimen.
+  - Rhythmic double-pulses upon new block commits and cuckoo calls.
+  - Crisp haptic clicks when inspecting a Cell specimen or block plaque.
 - **AMOLED Power Optimization**:
   - Pure `#000000` black backgrounds to minimize power draw on wearable OLED panels.
   - Capped pixel ratios and frame throttling when the screen is dimmed.
@@ -85,6 +93,7 @@ $$\text{newCellCount} = \sum_{\text{tx} \in \text{block.transactions}} \text{tx.
 watch-visualiser/
 ├── index.html                   # CKB Cell Laboratory (Three.js Web Exhibit)
 ├── bonsai.html                  # Japanese Maple Bonsai (Three.js Web Exhibit)
+├── cuckoo.html                  # Mechanical Cuckoo Clock (Three.js Web Exhibit)
 ├── three.min.js                 # Bundled Three.js engine for offline execution
 ├── server.py                    # Zero-dependency local dev server with auto port detection
 ├── build.gradle.kts             # Root Gradle build script
@@ -98,18 +107,20 @@ watch-visualiser/
         ├── AndroidManifest.xml  # Standalone watch app declaration & permissions
         ├── assets/visualisers/  # Bundled offline visualizer web apps
         │   ├── ckb-cell-lab/index.html
-        │   └── ckb-bonsai/index.html
+        │   ├── ckb-bonsai/index.html
+        │   └── ckb-cuckoo/index.html
         ├── java/network/nervos/watchvisualiser/
         │   ├── MainActivity.kt        # Rotary-scrollable Wear OS Compose menu
         │   ├── VisualiserActivity.kt  # Native visualizer activity dispatcher
         │   ├── SettingsActivity.kt    # CKB RPC & haptic settings screen
         │   ├── data/
-        │   │   ├── CkbRpcClient.kt       # Native CKB JSON-RPC & Cell extractor
+        │   │   ├── CkbRpcClient.kt       # Native CKB JSON-RPC & Cell/Epoch extractor
         │   │   ├── VisualiserRegistry.kt # Extensible visualizer catalog
         │   │   └── AppPreferences.kt     # SharedPreferences store
         │   └── ui/
         │       ├── LabVisualiserView.kt    # 60 FPS Native Cell Lab renderer
-        │       └── BonsaiVisualiserView.kt # 60 FPS Native Bonsai renderer
+        │       ├── BonsaiVisualiserView.kt # 60 FPS Native Bonsai renderer
+        │       └── CuckooVisualiserView.kt # 60 FPS Native Cuckoo Clock renderer
         └── res/                       # Vector drawables, colors, strings
 ```
 
@@ -125,8 +136,9 @@ python3 server.py
 Open in any browser:
 - **CKB Cell Laboratory**: [http://localhost:8084/](http://localhost:8084/)
 - **Japanese Maple Bonsai**: [http://localhost:8084/bonsai.html](http://localhost:8084/bonsai.html)
+- **Mechanical Cuckoo Clock**: [http://localhost:8084/cuckoo.html](http://localhost:8084/cuckoo.html)
 
-*Tip: Click the gear icon $\rightarrow$ **"TEST BLOCK"** to simulate an immediate CKB block event with authentic UTXO organisms or falling leaves.*
+*Tip: Click the gear icon $\rightarrow$ **"TEST BLOCK"** or **"DEMO CUCKOO"** to simulate an immediate CKB block event.*
 
 ---
 
@@ -165,15 +177,15 @@ adb -s emulator-5556 shell am start -n network.nervos.watchvisualiser/.MainActiv
 
 ---
 
-## 🗺️ Roadmap & Upcoming Visualizers
+## 🗺️ Roadmap & Visualizers
 
-The [`VisualiserRegistry.kt`](app/src/main/java/network/nervos/watchvisualiser/data/VisualiserRegistry.kt) is designed to host multiple Nervos visualizers:
+The [`VisualiserRegistry.kt`](app/src/main/java/network/nervos/watchvisualiser/data/VisualiserRegistry.kt) hosts multiple Nervos visualizers:
 
 - [x] **CKB Cell Laboratory** (FLAGSHIP) — Microscopic UTXO organisms swirling into the Liquid of Knowledge.
 - [x] **Japanese Maple Bonsai** (ACTIVE) — Newly created Cells falling as vibrant autumn leaves.
+- [x] **Mechanical Cuckoo Clock** (ACTIVE) — Black Forest chalet clock that chimes & reveals decoded Epoch state on every canonical block.
 - [ ] **Fiber Network Star Map** (COMING SOON) — Real-time P2P lightning payment channel routing.
 - [ ] **Mempool Particle Collider** (COMING SOON) — High-energy unconfirmed transaction collisions.
-- [ ] **Epoch Celestial Clock** (COMING SOON) — Halving cycles, difficulty adjustments, and DAO yields.
 
 ---
 

@@ -29,6 +29,15 @@ object VisualiserRegistry {
             isAvailable = true
         ),
         VisualiserInfo(
+            id = "ckb_cuckoo",
+            title = "Cuckoo Clock",
+            subtitle = "Handcrafted 3D Black Forest clock that chimes on every canonical block",
+            badge = "ACTIVE",
+            iconRes = R.drawable.ic_clock,
+            assetPath = "file:///android_asset/visualisers/ckb-cuckoo/index.html",
+            isAvailable = true
+        ),
+        VisualiserInfo(
             id = "fiber_network",
             title = "Fiber Network",
             subtitle = "Lightning-fast P2P state channels & peer routing topologies",
@@ -44,15 +53,6 @@ object VisualiserRegistry {
             badge = "COMING SOON",
             iconRes = R.drawable.ic_mempool,
             assetPath = "file:///android_asset/visualisers/mempool-collider/index.html",
-            isAvailable = false
-        ),
-        VisualiserInfo(
-            id = "epoch_clock",
-            title = "Epoch Clock",
-            subtitle = "Astronomical halving cycles & difficulty epochs",
-            badge = "COMING SOON",
-            iconRes = R.drawable.ic_clock,
-            assetPath = "file:///android_asset/visualisers/epoch-clock/index.html",
             isAvailable = false
         )
     )

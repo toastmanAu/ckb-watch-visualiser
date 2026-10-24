@@ -10,17 +10,19 @@ import androidx.lifecycle.lifecycleScope
 import network.nervos.watchvisualiser.data.AppPreferences
 import network.nervos.watchvisualiser.data.CkbRpcClient
 import network.nervos.watchvisualiser.ui.BonsaiVisualiserView
+import network.nervos.watchvisualiser.ui.CuckooVisualiserView
 import network.nervos.watchvisualiser.ui.LabVisualiserView
 
 /**
  * Native Wear OS Activity housing the visualizer selected by the user.
- * Seamlessly routes to LabVisualiserView or BonsaiVisualiserView with full
- * Pixel Watch 3 Digital Crown / Rotary Encoder support and live CKB RPC streaming.
+ * Seamlessly routes to LabVisualiserView, BonsaiVisualiserView, or CuckooVisualiserView
+ * with full Pixel Watch 3 Digital Crown / Rotary Encoder support and live CKB RPC streaming.
  */
 class VisualiserActivity : ComponentActivity() {
 
     private var labView: LabVisualiserView? = null
     private var bonsaiView: BonsaiVisualiserView? = null
+    private var cuckooView: CuckooVisualiserView? = null
     private lateinit var preferences: AppPreferences
     private lateinit var rpcClient: CkbRpcClient
 
@@ -35,19 +37,33 @@ class VisualiserActivity : ComponentActivity() {
 
         val visId = intent.getStringExtra(EXTRA_VISUALISER_ID) ?: "ckb_cell_lab"
 
-        if (visId == "ckb_bonsai") {
-            bonsaiView = BonsaiVisualiserView(this)
-            setContentView(bonsaiView)
-        } else {
-            labView = LabVisualiserView(this)
-            setContentView(labView)
+        when (visId) {
+            "ckb_bonsai" -> {
+                bonsaiView = BonsaiVisualiserView(this)
+                setContentView(bonsaiView)
+            }
+            "ckb_cuckoo" -> {
+                cuckooView = CuckooVisualiserView(this)
+                setContentView(cuckooView)
+            }
+            else -> {
+                labView = LabVisualiserView(this)
+                setContentView(labView)
+            }
         }
 
         // Connect to live CKB Blockchain via native RPC client
         rpcClient = CkbRpcClient(preferences.ckbRpcUrl, lifecycleScope).apply {
+            onBaselineLoaded = { baseline ->
+                cuckooView?.onBaselineLoaded(baseline)
+            }
             onBlockDetected = { blockData ->
                 labView?.onBlockArrived(blockData)
                 bonsaiView?.onBlockArrived(blockData)
+                cuckooView?.onBlockArrived(blockData)
+            }
+            onStatusChanged = { status ->
+                cuckooView?.onStatusUpdated(status)
             }
             start()
         }
@@ -64,6 +80,7 @@ class VisualiserActivity : ComponentActivity() {
             val delta = -event.getAxisValue(MotionEvent.AXIS_SCROLL) * preferences.rotarySensitivity
             labView?.handleRotaryScroll(delta)
             bonsaiView?.handleRotaryScroll(delta)
+            cuckooView?.handleRotaryScroll(delta)
             return true
         }
         return super.onGenericMotionEvent(event)

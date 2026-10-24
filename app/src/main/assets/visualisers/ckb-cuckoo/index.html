@@ -1,0 +1,2455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>NERVOS CKB • Mechanical Block Cuckoo Clock</title>
+<style>
+  :root {
+    --bg-dark: #0b0806;
+    --wood-dark: #24150e;
+    --wood-mid: #3d2314;
+    --brass-light: #f3d27a;
+    --brass-mid: #c89d42;
+    --brass-dark: #78581b;
+    --parchment: #f4ebd9;
+    --ckb-green: #00f59b;
+    --amber-warn: #f5a623;
+    --crimson-err: #e74c3c;
+    --text-gold: #ecd496;
+    --text-muted: #a6916a;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 42%, #1f150f 0%, #0d0907 70%, #050302 100%);
+    font-family: "Georgia", "Times New Roman", serif;
+    color: var(--text-gold);
+    touch-action: none;
+  }
+
+  #canvas-container {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    z-index: 1;
+  }
+
+  /* Subtle vignette overlay */
+  .vignette {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    background: radial-gradient(circle at 50% 50%, transparent 55%, rgba(4, 2, 1, 0.72) 100%);
+  }
+
+  /* Top Header Bar */
+  .top-bar {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 12px));
+    left: max(14px, env(safe-area-inset-left, 14px));
+    right: max(14px, env(safe-area-inset-right, 14px));
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .brand-pill {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: linear-gradient(180deg, rgba(38, 24, 15, 0.88), rgba(20, 12, 8, 0.92));
+    border: 1px solid rgba(200, 157, 66, 0.45);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 230, 168, 0.18);
+    padding: 7px 13px;
+    border-radius: 999px;
+    backdrop-filter: blur(8px);
+  }
+
+  .status-lamp {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--amber-warn);
+    box-shadow: 0 0 8px var(--amber-warn);
+    transition: background 0.35s ease, box-shadow 0.35s ease;
+  }
+  .status-lamp.live {
+    background: var(--ckb-green);
+    box-shadow: 0 0 10px var(--ckb-green), 0 0 3px #ffffff;
+  }
+  .status-lamp.fallback {
+    background: #38c6f4;
+    box-shadow: 0 0 9px #38c6f4;
+  }
+  .status-lamp.offline {
+    background: var(--crimson-err);
+    box-shadow: 0 0 8px var(--crimson-err);
+  }
+
+  .brand-titles {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand-main {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    color: var(--brass-light);
+    text-transform: uppercase;
+  }
+
+  .brand-sub {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.7px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  .top-actions {
+    pointer-events: auto;
+    display: flex;
+    gap: 8px;
+  }
+
+  .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, rgba(42, 26, 16, 0.88), rgba(21, 13, 8, 0.94));
+    border: 1px solid rgba(200, 157, 66, 0.45);
+    color: var(--brass-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 230, 168, 0.18);
+    transition: transform 0.15s ease, border-color 0.2s ease;
+  }
+  .icon-btn:active {
+    transform: scale(0.93);
+  }
+  .icon-btn.active {
+    border-color: var(--ckb-green);
+    color: var(--ckb-green);
+  }
+  .icon-btn svg {
+    width: 19px;
+    height: 19px;
+    fill: currentColor;
+  }
+
+  /* Queue badge */
+  .queue-pill {
+    position: fixed;
+    top: calc(max(12px, env(safe-area-inset-top, 12px)) + 52px);
+    left: max(14px, env(safe-area-inset-left, 14px));
+    z-index: 10;
+    background: rgba(28, 17, 10, 0.86);
+    border: 1px solid rgba(200, 157, 66, 0.4);
+    border-radius: 999px;
+    padding: 4px 11px;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 10px;
+    color: var(--brass-light);
+    letter-spacing: 0.6px;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
+  }
+  .queue-pill.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Brass Block Information Plaque at Bottom */
+  .plaque-wrapper {
+    position: fixed;
+    bottom: max(14px, env(safe-area-inset-bottom, 14px));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(92vw, 410px);
+    z-index: 10;
+    pointer-events: auto;
+  }
+
+  .brass-plaque {
+    position: relative;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(243, 210, 122, 0.16), transparent 70%),
+      linear-gradient(180deg, rgba(43, 27, 17, 0.94) 0%, rgba(24, 15, 9, 0.97) 100%);
+    border: 1.5px solid rgba(200, 157, 66, 0.62);
+    border-radius: 14px;
+    padding: 11px 15px 10px;
+    box-shadow:
+      0 10px 28px rgba(0, 0, 0, 0.78),
+      inset 0 1px 0 rgba(255, 232, 175, 0.28),
+      inset 0 0 18px rgba(200, 157, 66, 0.08);
+    transition: border-color 0.35s ease, box-shadow 0.45s ease, transform 0.35s ease;
+    cursor: pointer;
+  }
+
+  .brass-plaque.illuminated {
+    border-color: #ffe28a;
+    box-shadow:
+      0 10px 34px rgba(0, 0, 0, 0.85),
+      0 0 26px rgba(243, 210, 122, 0.38),
+      inset 0 0 24px rgba(243, 210, 122, 0.22);
+    transform: translateY(-2px);
+  }
+
+  /* Decorative corner rivets */
+  .rivet {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff0bd, #8c6520);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+  .rivet.tl { top: 6px; left: 6px; }
+  .rivet.tr { top: 6px; right: 6px; }
+  .rivet.bl { bottom: 6px; left: 6px; }
+  .rivet.br { bottom: 6px; right: 6px; }
+
+  .plaque-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(200, 157, 66, 0.24);
+    padding-bottom: 6px;
+    margin-bottom: 7px;
+  }
+
+  .plaque-title-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .plaque-label {
+    font-size: 9.5px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .demo-badge {
+    display: none;
+    background: rgba(245, 166, 35, 0.22);
+    border: 1px solid var(--amber-warn);
+    color: var(--amber-warn);
+    font-family: ui-monospace, monospace;
+    font-size: 8.5px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    letter-spacing: 0.8px;
+  }
+  .demo-badge.visible {
+    display: inline-block;
+  }
+
+  .plaque-block-num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--brass-light);
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 12px rgba(243, 210, 122, 0.28);
+  }
+
+  .plaque-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+    font-size: 11px;
+  }
+
+  .plaque-item {
+    display: flex;
+    flex-direction: column;
+  }
+  .plaque-item.full-width {
+    grid-column: 1 / -1;
+  }
+
+  .item-key {
+    font-size: 8.5px;
+    text-transform: uppercase;
+    letter-spacing: 1.1px;
+    color: var(--text-muted);
+    margin-bottom: 1px;
+  }
+
+  .item-val {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--parchment);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hash-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .copy-pill {
+    font-family: ui-monospace, monospace;
+    font-size: 9px;
+    color: var(--brass-light);
+    background: rgba(200, 157, 66, 0.16);
+    border: 1px solid rgba(200, 157, 66, 0.35);
+    padding: 2px 7px;
+    border-radius: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .copy-pill:active {
+    background: rgba(200, 157, 66, 0.35);
+  }
+
+  .plaque-footer-hint {
+    margin-top: 6px;
+    text-align: center;
+    font-size: 8.5px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(166, 145, 106, 0.72);
+  }
+
+  /* Modal / Drawer Overlay */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(4, 2, 1, 0.72);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .modal-card {
+    width: min(94vw, 420px);
+    max-height: 84dvh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, #28180f 0%, #150c07 100%);
+    border: 1.5px solid var(--brass-mid);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.9);
+    color: var(--parchment);
+  }
+
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(200, 157, 66, 0.3);
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+
+  .modal-title {
+    font-size: 13px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--brass-light);
+    font-weight: 700;
+  }
+
+  .close-btn {
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(200, 157, 66, 0.4);
+    background: rgba(0, 0, 0, 0.35);
+    color: var(--brass-light);
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .detail-row {
+    background: rgba(0, 0, 0, 0.32);
+    border: 1px solid rgba(200, 157, 66, 0.18);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+
+  .detail-row .d-label {
+    font-size: 9px;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 3px;
+  }
+
+  .detail-row .d-val {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    color: var(--parchment);
+    word-break: break-all;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .form-group {
+    margin-bottom: 13px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 10px 11px;
+    border-radius: 8px;
+    border: 1px solid rgba(200, 157, 66, 0.42);
+    background: rgba(8, 5, 3, 0.85);
+    color: var(--parchment);
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 12px;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .action-btn {
+    flex: 1;
+    min-height: 44px;
+    border-radius: 10px;
+    border: 1px solid var(--brass-mid);
+    background: linear-gradient(180deg, #4b2d18, #2c190d);
+    color: var(--brass-light);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 0 12px;
+  }
+  .action-btn.primary {
+    background: linear-gradient(180deg, #d1a447, #966e22);
+    color: #160c05;
+    border-color: #f5d684;
+  }
+  .action-btn.demo {
+    background: linear-gradient(180deg, #1b4d38, #0f2e21);
+    border-color: var(--ckb-green);
+    color: var(--ckb-green);
+  }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div class="vignette"></div>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <div class="brand-pill" id="status-pill" title="CKB Node Connection Status">
+    <div class="status-lamp" id="status-lamp"></div>
+    <div class="brand-titles">
+      <div class="brand-main">NERVOS CKB • BLOCK CLOCK</div>
+      <div class="brand-sub" id="status-text">CONNECTING TO CKB…</div>
+    </div>
+  </div>
+
+  <div class="top-actions">
+    <button class="icon-btn" id="btn-audio" aria-label="Toggle Cuckoo Clock Audio" title="Toggle Sound">
+      <svg id="icon-muted" viewBox="0 0 24 24">
+        <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+      </svg>
+      <svg id="icon-unmuted" viewBox="0 0 24 24" style="display:none">
+        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+      </svg>
+    </button>
+
+    <button class="icon-btn" id="btn-settings" aria-label="Clock & Node Settings" title="Settings & Demo">
+      <svg viewBox="0 0 24 24">
+        <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Queued blocks indicator -->
+<div class="queue-pill" id="queue-pill">QUEUED BLOCKS: 0</div>
+
+<!-- Illuminated Brass Plaque -->
+<div class="plaque-wrapper">
+  <div class="brass-plaque" id="brass-plaque" role="button" tabindex="0" aria-label="Inspect Canonical Block Details">
+    <span class="rivet tl"></span>
+    <span class="rivet tr"></span>
+    <span class="rivet bl"></span>
+    <span class="rivet br"></span>
+
+    <div class="plaque-header">
+      <div class="plaque-title-group">
+        <span class="plaque-label">CANONICAL BLOCK</span>
+        <span class="demo-badge" id="demo-badge">DEMO</span>
+      </div>
+      <div class="plaque-block-num" id="plaque-height">AWAITING TIP…</div>
+    </div>
+
+    <div class="plaque-grid">
+      <div class="plaque-item">
+        <span class="item-key">TRANSACTIONS</span>
+        <span class="item-val" id="plaque-txs">—</span>
+      </div>
+      <div class="plaque-item">
+        <span class="item-key">BLOCK TIME</span>
+        <span class="item-val" id="plaque-time">—</span>
+      </div>
+      <div class="plaque-item full-width">
+        <span class="item-key">EPOCH PROGRESS</span>
+        <span class="item-val" id="plaque-epoch">—</span>
+      </div>
+      <div class="plaque-item full-width">
+        <span class="item-key">BLOCK HASH</span>
+        <div class="hash-row">
+          <span class="item-val" id="plaque-hash">—</span>
+          <button class="copy-pill" id="btn-copy-hash" type="button">COPY</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="plaque-footer-hint">TAP PLAQUE FOR FULL HEADER &amp; EPOCH DETAILS</div>
+  </div>
+</div>
+
+<!-- Block Details Drawer Modal -->
+<div class="modal-backdrop" id="modal-details">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title" id="detail-modal-title">BLOCK HEADER RECORD</div>
+      <button class="close-btn" id="btn-close-details" aria-label="Close">✕</button>
+    </div>
+    <div class="detail-list" id="detail-list"></div>
+  </div>
+</div>
+
+<!-- Settings & Demo Modal -->
+<div class="modal-backdrop" id="modal-settings">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title">CLOCK &amp; CKB NODE SETTINGS</div>
+      <button class="close-btn" id="btn-close-settings" aria-label="Close">✕</button>
+    </div>
+
+    <div class="form-group">
+      <label for="input-ws-url">Preferred WebSocket RPC (`new_tip_block`)</label>
+      <input class="form-input" id="input-ws-url" type="url" placeholder="wss://mainnet.ckb.dev/ws" />
+    </div>
+
+    <div class="form-group">
+      <label for="input-http-url">HTTP JSON-RPC Fallback (`get_tip_header` / `get_block`)</label>
+      <input class="form-input" id="input-http-url" type="url" placeholder="https://mainnet.ckb.dev/" />
+    </div>
+
+    <div class="btn-row">
+      <button class="action-btn demo" id="btn-trigger-demo" type="button">🔔 DEMO CUCKOO</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="action-btn" id="btn-reset-rpc" type="button">RESET DEFAULTS</button>
+      <button class="action-btn primary" id="btn-save-rpc" type="button">SAVE &amp; RECONNECT</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ============================================================================
+ * 1. CKB HEX, EPOCH & TIME UTILITIES
+ * ============================================================================ */
+
+const CkbUtils = {
+  /**
+   * Parse a 0x-prefixed hexadecimal string into a BigInt safely.
+   */
+  hexToBigInt(hex) {
+    if (typeof hex !== 'string') return 0n;
+    const clean = hex.trim();
+    if (!clean || clean === '0x' || clean === '0X') return 0n;
+    try {
+      return BigInt(clean.startsWith('0x') || clean.startsWith('0X') ? clean : '0x' + clean);
+    } catch {
+      return 0n;
+    }
+  },
+
+  /**
+   * Parse a 0x-prefixed hexadecimal string into a safe JavaScript Number.
+   */
+  hexToNumber(hex) {
+    return Number(this.hexToBigInt(hex));
+  },
+
+  /**
+   * Decode CKB's 64-bit packed EpochNumberWithFraction field (RFC-0027):
+   * - bits [0..23]  (24 bits): epoch number
+   * - bits [24..39] (16 bits): block index within the epoch
+   * - bits [40..55] (16 bits): total block length of the epoch
+   */
+  decodeEpoch(packedHex) {
+    const raw = this.hexToBigInt(packedHex);
+    const number = Number(raw & 0xFFFFFFn);
+    const index = Number((raw >> 24n) & 0xFFFFn);
+    const length = Number((raw >> 40n) & 0xFFFFn);
+    return { number, index, length, rawHex: packedHex };
+  },
+
+  formatEpochDisplay(epochObj) {
+    if (!epochObj || epochObj.length === 0) {
+      return `Epoch ${epochObj ? epochObj.number.toLocaleString() : '—'}`;
+    }
+    return `Epoch ${epochObj.number.toLocaleString()} • Block ${epochObj.index.toLocaleString()} / ${epochObj.length.toLocaleString()}`;
+  },
+
+  /**
+   * CKB header timestamps are uint64 milliseconds since Unix epoch.
+   */
+  formatTimestamp(timestampHex) {
+    const ms = this.hexToNumber(timestampHex);
+    if (!ms || ms <= 0) return '—';
+    const d = new Date(ms);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
+           ' • ' + d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  },
+
+  formatFullTimestamp(timestampHex) {
+    const ms = this.hexToNumber(timestampHex);
+    if (!ms || ms <= 0) return '—';
+    return new Date(ms).toLocaleString();
+  },
+
+  shortenHash(hash) {
+    if (!hash || hash.length < 16) return hash || '—';
+    return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
+  },
+
+  /**
+   * Parse a raw CKB RPC block or header+block response into a normalized record.
+   * Ensures transaction count includes the cellbase transaction.
+   */
+  normalizeBlock(rawBlock, isDemo = false) {
+    const header = rawBlock.header ? rawBlock.header : rawBlock;
+    const txs = Array.isArray(rawBlock.transactions) ? rawBlock.transactions : null;
+    const proposals = Array.isArray(rawBlock.proposals) ? rawBlock.proposals : [];
+
+    // Count newly created Cells across all transactions (including cellbase)
+    let newCellsCount = 0;
+    if (txs) {
+      for (const tx of txs) {
+        if (tx && Array.isArray(tx.outputs)) {
+          newCellsCount += tx.outputs.length;
+        }
+      }
+    }
+
+    const epoch = this.decodeEpoch(header.epoch || '0x0');
+
+    return {
+      hash: header.hash || '0x0',
+      number: this.hexToNumber(header.number),
+      numberHex: header.number || '0x0',
+      timestampHex: header.timestamp || '0x0',
+      timestampFormatted: this.formatTimestamp(header.timestamp),
+      timestampFull: this.formatFullTimestamp(header.timestamp),
+      epoch,
+      epochFormatted: this.formatEpochDisplay(epoch),
+      txCount: txs ? txs.length : 1,
+      newCellsCount,
+      proposalsCount: proposals.length,
+      parentHash: header.parent_hash || '—',
+      transactionsRoot: header.transactions_root || '—',
+      compactTarget: header.compact_target || '—',
+      nonce: header.nonce || '—',
+      version: header.version ? String(this.hexToNumber(header.version)) : '0',
+      isDemo
+    };
+  }
+};
+
+/* ============================================================================
+ * 2. WEB AUDIO SYNTHESIZER (Mechanical Ticks, Bellows & Two-Note Cuckoo Call)
+ * ============================================================================ */
+
+class AudioEngine {
+  constructor() {
+    this.ctx = null;
+    this.enabled = false;
+  }
+
+  toggle() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        this.ctx = new AudioCtx();
+      }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+    this.enabled = !this.enabled;
+    if (this.enabled) {
+      this.playMechanicalClick(900);
+    }
+    return this.enabled;
+  }
+
+  /**
+   * Soft wooden escapement tick for the swinging pendulum.
+   */
+  playTick(isTock = false) {
+    if (!this.enabled || !this.ctx || document.hidden) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(isTock ? 620 : 760, now);
+      osc.frequency.exponentialRampToValueAtTime(140, now + 0.025);
+
+      gain.gain.setValueAtTime(0.035, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.028);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.03);
+    } catch {}
+  }
+
+  /**
+   * Mechanical latch/gear click when door opens or closes.
+   */
+  playMechanicalClick(freq = 520) {
+    if (!this.enabled || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.06);
+
+      gain.gain.setValueAtTime(0.07, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.07);
+    } catch {}
+  }
+
+  /**
+   * Classic two-note Black Forest wooden pipe bellows "Cuck-oo!" call (Minor third: Bb5 -> G5).
+   */
+  playCuckooCall() {
+    if (!this.enabled || !this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      this._playPipeNote(698.46, now, 0.16);       // F5 / high pipe
+      this._playPipeNote(587.33, now + 0.22, 0.28); // D5 / low pipe
+    } catch {}
+  }
+
+  _playPipeNote(freq, startTime, duration) {
+    const osc = this.ctx.createOscillator();
+    const sub = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq * 1.015, startTime);
+    osc.frequency.exponentialRampToValueAtTime(freq, startTime + 0.04);
+
+    // Subtle wooden resonance harmonic
+    sub.type = 'triangle';
+    sub.frequency.setValueAtTime(freq * 0.5, startTime);
+
+    gain.gain.setValueAtTime(0.001, startTime);
+    gain.gain.linearRampToValueAtTime(0.16, startTime + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0008, startTime + duration);
+
+    osc.connect(gain);
+    sub.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(startTime);
+    sub.start(startTime);
+    osc.stop(startTime + duration + 0.02);
+    sub.stop(startTime + duration + 0.02);
+  }
+}
+
+/* ============================================================================
+ * 3. FIFO BLOCK EVENT QUEUE (Deduplicating & Sequential)
+ * ============================================================================ */
+
+class BlockEventQueue {
+  constructor(onTriggerBlock, onQueueChanged) {
+    this.queue = [];
+    this.seenHashes = new Set();
+    this.isAnimating = false;
+    this.onTriggerBlock = onTriggerBlock;
+    this.onQueueChanged = onQueueChanged;
+  }
+
+  registerBaselineHash(hash) {
+    if (hash) this.seenHashes.add(hash);
+  }
+
+  enqueue(blockData) {
+    if (!blockData || !blockData.hash) return false;
+    if (!blockData.isDemo) {
+      if (this.seenHashes.has(blockData.hash)) {
+        return false; // Duplicate canonical block ignored
+      }
+      this.seenHashes.add(blockData.hash);
+      // Keep seenHashes bounded
+      if (this.seenHashes.size > 500) {
+        const first = this.seenHashes.values().next().value;
+        this.seenHashes.delete(first);
+      }
+    }
+
+    this.queue.push(blockData);
+    this._notifyQueue();
+    this._processNext();
+    return true;
+  }
+
+  notifyAnimationComplete() {
+    this.isAnimating = false;
+    this._notifyQueue();
+    this._processNext();
+  }
+
+  _processNext() {
+    if (this.isAnimating || this.queue.length === 0) return;
+    this.isAnimating = true;
+    const nextBlock = this.queue.shift();
+    this._notifyQueue();
+    this.onTriggerBlock(nextBlock);
+  }
+
+  _notifyQueue() {
+    if (this.onQueueChanged) {
+      this.onQueueChanged(this.queue.length);
+    }
+  }
+}
+
+/* ============================================================================
+ * 4. DUAL-MODE CKB NETWORK CONNECTION (WebSocket + HTTP Fallback)
+ * ============================================================================ */
+
+class CKBConnection {
+  constructor({ onBaselineTip, onNewBlock, onStatusChange }) {
+    this.defaultWsUrl = 'wss://mainnet.ckb.dev/ws';
+    this.defaultHttpUrl = 'https://mainnet.ckb.dev/';
+    this.secondaryHttpUrl = 'https://mainnet.ckbapp.dev/';
+
+    this.wsUrl = localStorage.getItem('ckb_cuckoo_ws_url') || this.defaultWsUrl;
+    this.httpUrl = localStorage.getItem('ckb_cuckoo_http_url') || this.defaultHttpUrl;
+
+    this.onBaselineTip = onBaselineTip;
+    this.onNewBlock = onNewBlock;
+    this.onStatusChange = onStatusChange;
+
+    this.ws = null;
+    this.wsSubscribed = false;
+    this.subscriptionId = null;
+    this.reconnectTimer = null;
+    this.pollTimer = null;
+    this.backoffMs = 2000;
+    this.hasBaseline = false;
+    this.lastTipHash = null;
+    this.activeHttpEndpoint = this.httpUrl;
+  }
+
+  start() {
+    this.stop();
+    this._setStatus('CONNECTING', 'CONNECTING TO CKB…');
+    this._fetchInitialBaseline();
+    this._connectWebSocket();
+  }
+
+  stop() {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.reconnectTimer = null;
+    this.pollTimer = null;
+    this.wsSubscribed = false;
+    this.subscriptionId = null;
+    if (this.ws) {
+      try {
+        this.ws.onopen = null;
+        this.ws.onmessage = null;
+        this.ws.onerror = null;
+        this.ws.onclose = null;
+        this.ws.close();
+      } catch {}
+      this.ws = null;
+    }
+  }
+
+  updateEndpoints(wsUrl, httpUrl) {
+    this.wsUrl = (wsUrl || this.defaultWsUrl).trim();
+    this.httpUrl = (httpUrl || this.defaultHttpUrl).trim();
+    this.activeHttpEndpoint = this.httpUrl;
+    localStorage.setItem('ckb_cuckoo_ws_url', this.wsUrl);
+    localStorage.setItem('ckb_cuckoo_http_url', this.httpUrl);
+    this.hasBaseline = false;
+    this.lastTipHash = null;
+    this.start();
+  }
+
+  resetDefaults() {
+    localStorage.removeItem('ckb_cuckoo_ws_url');
+    localStorage.removeItem('ckb_cuckoo_http_url');
+    this.wsUrl = this.defaultWsUrl;
+    this.httpUrl = this.defaultHttpUrl;
+    this.activeHttpEndpoint = this.httpUrl;
+    this.hasBaseline = false;
+    this.lastTipHash = null;
+    this.start();
+  }
+
+  async _rpcHttp(method, params = []) {
+    const endpoints = [this.activeHttpEndpoint];
+    if (this.activeHttpEndpoint === this.defaultHttpUrl) {
+      endpoints.push(this.secondaryHttpUrl);
+    } else if (this.activeHttpEndpoint !== this.defaultHttpUrl) {
+      endpoints.push(this.defaultHttpUrl);
+    }
+
+    for (const endpoint of endpoints) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: Date.now(),
+            jsonrpc: '2.0',
+            method,
+            params
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+        if (!res.ok) continue;
+        const json = await res.json();
+        if (json && json.result !== undefined) {
+          this.activeHttpEndpoint = endpoint;
+          return json.result;
+        }
+      } catch {
+        clearTimeout(timeout);
+      }
+    }
+    throw new Error(`RPC ${method} failed`);
+  }
+
+  async _fetchInitialBaseline() {
+    try {
+      const tipHeader = await this._rpcHttp('get_tip_header', []);
+      if (!tipHeader || !tipHeader.hash) return;
+
+      let fullBlock = null;
+      try {
+        fullBlock = await this._rpcHttp('get_block', [tipHeader.hash]);
+      } catch {}
+
+      const normalized = CkbUtils.normalizeBlock(fullBlock || { header: tipHeader, transactions: [{}] }, false);
+      if (!this.hasBaseline) {
+        this.hasBaseline = true;
+        this.lastTipHash = normalized.hash;
+        this.onBaselineTip(normalized);
+      }
+      if (!this.wsSubscribed && !this.pollTimer) {
+        this._setStatus('HTTP FALLBACK', 'HTTP FALLBACK • LIVE POLLING');
+      }
+    } catch {
+      if (!this.wsSubscribed) {
+        this._setStatus('OFFLINE', 'OFFLINE • RETRYING…');
+      }
+    }
+  }
+
+  _connectWebSocket() {
+    if (!this.wsUrl || (!this.wsUrl.startsWith('ws://') && !this.wsUrl.startsWith('wss://'))) {
+      this._startHttpFallback();
+      return;
+    }
+
+    try {
+      this.ws = new WebSocket(this.wsUrl);
+    } catch {
+      this._startHttpFallback();
+      return;
+    }
+
+    this.ws.onopen = () => {
+      // Send official CKB JSON-RPC subscription for new_tip_block
+      const subPayload = {
+        id: 1,
+        jsonrpc: '2.0',
+        method: 'subscribe',
+        params: ['new_tip_block']
+      };
+      this.ws.send(JSON.stringify(subPayload));
+    };
+
+    this.ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+
+        // 1. Distinguish initial subscription acknowledgement (id === 1, result === subId)
+        if (msg.id === 1 && msg.result) {
+          this.subscriptionId = msg.result;
+          this.wsSubscribed = true;
+          this.backoffMs = 2000;
+          if (this.pollTimer) {
+            clearInterval(this.pollTimer);
+            this.pollTimer = null;
+          }
+          this._setStatus('LIVE', 'LIVE • WSS STREAM');
+          return;
+        }
+
+        // 2. Handle pushed new_tip_block notification
+        if (msg.method === 'subscribe' && msg.params && msg.params.result) {
+          const rawPayload = typeof msg.params.result === 'string'
+            ? JSON.parse(msg.params.result)
+            : msg.params.result;
+
+          const blockData = CkbUtils.normalizeBlock(rawPayload, false);
+
+          if (!this.hasBaseline) {
+            this.hasBaseline = true;
+            this.lastTipHash = blockData.hash;
+            this.onBaselineTip(blockData);
+            return;
+          }
+
+          if (blockData.hash !== this.lastTipHash) {
+            this.lastTipHash = blockData.hash;
+            this.onNewBlock(blockData);
+          }
+        }
+      } catch {
+        // Ignore malformed frame
+      }
+    };
+
+    this.ws.onerror = () => {
+      // Handled in onclose
+    };
+
+    this.ws.onclose = () => {
+      this.wsSubscribed = false;
+      this.subscriptionId = null;
+      this._startHttpFallback();
+      this._scheduleWsReconnect();
+    };
+  }
+
+  _scheduleWsReconnect() {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    const delay = this.backoffMs;
+    this.backoffMs = Math.min(this.backoffMs * 1.6, 30000);
+    this.reconnectTimer = setTimeout(() => {
+      if (!this.wsSubscribed) {
+        this._connectWebSocket();
+      }
+    }, delay);
+  }
+
+  _startHttpFallback() {
+    if (this.pollTimer) return;
+    this._setStatus('HTTP FALLBACK', 'HTTP FALLBACK • POLLING');
+
+    this.pollTimer = setInterval(async () => {
+      if (this.wsSubscribed) return;
+      try {
+        const tipHeader = await this._rpcHttp('get_tip_header', []);
+        if (!tipHeader || !tipHeader.hash) return;
+
+        this._setStatus('HTTP FALLBACK', 'HTTP FALLBACK • LIVE');
+
+        if (!this.hasBaseline) {
+          let fullBlock = null;
+          try {
+            fullBlock = await this._rpcHttp('get_block', [tipHeader.hash]);
+          } catch {}
+          const baseline = CkbUtils.normalizeBlock(fullBlock || { header: tipHeader, transactions: [{}] }, false);
+          this.hasBaseline = true;
+          this.lastTipHash = baseline.hash;
+          this.onBaselineTip(baseline);
+          return;
+        }
+
+        if (tipHeader.hash !== this.lastTipHash) {
+          this.lastTipHash = tipHeader.hash;
+          let fullBlock = null;
+          try {
+            fullBlock = await this._rpcHttp('get_block', [tipHeader.hash]);
+          } catch {}
+          const blockData = CkbUtils.normalizeBlock(fullBlock || { header: tipHeader, transactions: [{}] }, false);
+          this.onNewBlock(blockData);
+        }
+      } catch {
+        this._setStatus('OFFLINE', 'OFFLINE • RETRYING…');
+      }
+    }, 2800);
+  }
+
+  _setStatus(state, label) {
+    if (this.onStatusChange) {
+      this.onStatusChange(state, label);
+    }
+  }
+}
+
+/* ============================================================================
+ * 5. PROCEDURAL 3D CUCKOO BIRD & MECHANICAL CLOCK (Three.js)
+ * ============================================================================ */
+
+class CuckooBird {
+  constructor() {
+    this.root = new THREE.Group();
+
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0x3b4d5e,
+      roughness: 0.55,
+      metalness: 0.08
+    });
+    const breastMat = new THREE.MeshStandardMaterial({
+      color: 0xd9cbb8,
+      roughness: 0.65,
+      metalness: 0.05
+    });
+    const wingMat = new THREE.MeshStandardMaterial({
+      color: 0x263545,
+      roughness: 0.5,
+      metalness: 0.1
+    });
+    const beakMat = new THREE.MeshStandardMaterial({
+      color: 0xe8a331,
+      roughness: 0.35,
+      metalness: 0.2
+    });
+    const eyeMat = new THREE.MeshStandardMaterial({
+      color: 0x111111,
+      roughness: 0.15,
+      metalness: 0.4
+    });
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xc89d42,
+      roughness: 0.3,
+      metalness: 0.85
+    });
+
+    // Sliding wooden/brass rail carriage
+    const railGeo = new THREE.BoxGeometry(0.16, 0.05, 0.9);
+    const railMesh = new THREE.Mesh(railGeo, brassMat);
+    railMesh.position.set(0, -0.24, -0.22);
+    this.root.add(railMesh);
+
+    // Perch bar
+    const perchGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.28, 10);
+    perchGeo.rotateZ(Math.PI / 2);
+    const perch = new THREE.Mesh(perchGeo, brassMat);
+    perch.position.set(0, -0.19, 0.12);
+    this.root.add(perch);
+
+    // Pivot group for body tilt when calling "Cuck-oo!"
+    this.bodyPivot = new THREE.Group();
+    this.bodyPivot.position.set(0, -0.16, 0.12);
+    this.root.add(this.bodyPivot);
+
+    // Torso
+    const torsoGeo = new THREE.SphereGeometry(0.17, 18, 14);
+    torsoGeo.scale(0.85, 0.95, 1.35);
+    const torso = new THREE.Mesh(torsoGeo, bodyMat);
+    torso.position.set(0, 0.16, 0);
+    torso.castShadow = true;
+    this.bodyPivot.add(torso);
+
+    // Breast plumage
+    const breastGeo = new THREE.SphereGeometry(0.145, 16, 12);
+    breastGeo.scale(0.78, 0.88, 1.15);
+    const breast = new THREE.Mesh(breastGeo, breastMat);
+    breast.position.set(0, 0.13, 0.06);
+    this.bodyPivot.add(breast);
+
+    // Tail feathers
+    const tailGeo = new THREE.BoxGeometry(0.16, 0.035, 0.28);
+    this.tail = new THREE.Mesh(tailGeo, wingMat);
+    this.tail.position.set(0, 0.21, -0.24);
+    this.tail.rotation.x = 0.28;
+    this.bodyPivot.add(this.tail);
+
+    // Left & Right Wings
+    const wingGeo = new THREE.SphereGeometry(0.14, 14, 10);
+    wingGeo.scale(0.28, 0.65, 1.25);
+
+    this.leftWing = new THREE.Mesh(wingGeo, wingMat);
+    this.leftWing.position.set(0.13, 0.18, -0.02);
+    this.bodyPivot.add(this.leftWing);
+
+    this.rightWing = new THREE.Mesh(wingGeo, wingMat);
+    this.rightWing.position.set(-0.13, 0.18, -0.02);
+    this.bodyPivot.add(this.rightWing);
+
+    // Head Group
+    this.headGroup = new THREE.Group();
+    this.headGroup.position.set(0, 0.31, 0.16);
+    this.bodyPivot.add(this.headGroup);
+
+    const headGeo = new THREE.SphereGeometry(0.115, 16, 14);
+    const headMesh = new THREE.Mesh(headGeo, bodyMat);
+    headMesh.castShadow = true;
+    this.headGroup.add(headMesh);
+
+    // Eyes with gold iris rings
+    const eyeGeo = new THREE.SphereGeometry(0.022, 10, 10);
+    const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+    leftEye.position.set(0.085, 0.025, 0.065);
+    const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+    rightEye.position.set(-0.085, 0.025, 0.065);
+    this.headGroup.add(leftEye, rightEye);
+
+    // Upper Beak
+    const upperBeakGeo = new THREE.ConeGeometry(0.042, 0.14, 12);
+    upperBeakGeo.rotateX(Math.PI / 2);
+    this.upperBeak = new THREE.Mesh(upperBeakGeo, beakMat);
+    this.upperBeak.position.set(0, 0.005, 0.15);
+    this.headGroup.add(this.upperBeak);
+
+    // Lower Beak (articulates open during call)
+    const lowerBeakGeo = new THREE.ConeGeometry(0.034, 0.12, 12);
+    lowerBeakGeo.rotateX(Math.PI / 2);
+    this.lowerBeak = new THREE.Mesh(lowerBeakGeo, beakMat);
+    this.lowerBeak.position.set(0, -0.02, 0.14);
+    this.headGroup.add(this.lowerBeak);
+  }
+
+  /**
+   * Update bird posture:
+   * - extendProgress: [0..1] rail emergence
+   * - callIntensity: [0..1] beak opening, body tilt, wing flutter
+   * - time: elapsed time for subtle breathing bob
+   */
+  update(extendProgress, callIntensity, time) {
+    // Move along Z from inside the clock (0.05) to out on the balcony (0.76)
+    this.root.position.z = 0.05 + extendProgress * 0.72;
+
+    // Body bows forward when calling
+    this.bodyPivot.rotation.x = callIntensity * 0.36 + Math.sin(time * 4.0) * 0.025;
+    this.headGroup.rotation.x = -callIntensity * 0.18;
+    this.headGroup.rotation.y = Math.sin(time * 2.7) * 0.08 * extendProgress;
+
+    // Open lower beak and raise tail on call
+    this.lowerBeak.rotation.x = callIntensity * 0.55;
+    this.tail.rotation.x = 0.28 + callIntensity * 0.32;
+
+    // Flap wings slightly during call
+    const flap = callIntensity * (0.45 + Math.sin(time * 28.0) * 0.2);
+    this.leftWing.rotation.z = -flap;
+    this.rightWing.rotation.z = flap;
+  }
+}
+
+class CuckooClock {
+  constructor(scene, audioEngine) {
+    this.scene = scene;
+    this.audio = audioEngine;
+    this.root = new THREE.Group();
+    this.scene.add(this.root);
+
+    this.gears = [];
+    this.lastSecondSide = 0;
+
+    // Sequence animation state
+    this.seqActive = false;
+    this.seqTime = 0;
+    this.seqDuration = 7.2;
+    this.seqCall1Fired = false;
+    this.seqCall2Fired = false;
+    this.seqDoorOpenSoundFired = false;
+    this.seqDoorCloseSoundFired = false;
+    this.onSequenceMidpoint = null;
+    this.onSequenceFinished = null;
+
+    this._buildMaterials();
+    this._buildEnvironmentWall();
+    this._buildChaletCase();
+    this._buildRoofAndCarvings();
+    this._buildClockFace();
+    this._buildCuckooDoorAndInterior();
+    this._buildPendulumAndWeights();
+  }
+
+  _buildMaterials() {
+    this.matDarkWalnut = new THREE.MeshStandardMaterial({
+      color: 0x26150c,
+      roughness: 0.48,
+      metalness: 0.06
+    });
+    this.matRichMahogany = new THREE.MeshStandardMaterial({
+      color: 0x422414,
+      roughness: 0.38,
+      metalness: 0.08
+    });
+    this.matCarvedOak = new THREE.MeshStandardMaterial({
+      color: 0x5c341d,
+      roughness: 0.42,
+      metalness: 0.07
+    });
+    this.matBrass = new THREE.MeshStandardMaterial({
+      color: 0xd4a849,
+      roughness: 0.24,
+      metalness: 0.88
+    });
+    this.matAgedBrass = new THREE.MeshStandardMaterial({
+      color: 0x99732c,
+      roughness: 0.38,
+      metalness: 0.82
+    });
+    this.matDialCream = new THREE.MeshStandardMaterial({
+      color: 0xf3ead8,
+      roughness: 0.65,
+      metalness: 0.04
+    });
+    this.matIronWeight = new THREE.MeshStandardMaterial({
+      color: 0x3b352e,
+      roughness: 0.45,
+      metalness: 0.78
+    });
+    this.matStatusLamp = new THREE.MeshStandardMaterial({
+      color: 0x00f59b,
+      emissive: 0x00f59b,
+      emissiveIntensity: 1.4,
+      roughness: 0.2
+    });
+  }
+
+  _buildEnvironmentWall() {
+    // Subtle dark timber study backdrop behind the clock
+    const wallGroup = new THREE.Group();
+    wallGroup.position.z = -1.05;
+    const plankGeo = new THREE.BoxGeometry(0.95, 11, 0.12);
+    for (let i = -5; i <= 5; i++) {
+      const plank = new THREE.Mesh(
+        plankGeo,
+        i % 2 === 0 ? this.matDarkWalnut : this.matRichMahogany
+      );
+      plank.position.x = i * 0.98;
+      plank.receiveShadow = true;
+      wallGroup.add(plank);
+    }
+    this.scene.add(wallGroup);
+  }
+
+  _buildChaletCase() {
+    // Main central chalet body
+    const mainBox = new THREE.Mesh(
+      new THREE.BoxGeometry(2.3, 2.95, 1.35),
+      this.matRichMahogany
+    );
+    mainBox.position.set(0, 0.35, 0);
+    mainBox.castShadow = true;
+    mainBox.receiveShadow = true;
+    this.root.add(mainBox);
+
+    // Upper gable triangle prism
+    const gableShape = new THREE.Shape();
+    gableShape.moveTo(-1.18, 0);
+    gableShape.lineTo(1.18, 0);
+    gableShape.lineTo(0, 1.32);
+    gableShape.closePath();
+
+    const gableGeo = new THREE.ExtrudeGeometry(gableShape, {
+      depth: 1.32,
+      bevelEnabled: true,
+      bevelSegments: 2,
+      steps: 1,
+      bevelSize: 0.03,
+      bevelThickness: 0.03
+    });
+    gableGeo.center();
+    const gableMesh = new THREE.Mesh(gableGeo, this.matRichMahogany);
+    gableMesh.position.set(0, 2.42, 0);
+    gableMesh.castShadow = true;
+    this.root.add(gableMesh);
+
+    // Tiered base molding Cornice
+    const baseTop = new THREE.Mesh(
+      new THREE.BoxGeometry(2.68, 0.18, 1.58),
+      this.matDarkWalnut
+    );
+    baseTop.position.set(0, -1.16, 0.04);
+    baseTop.castShadow = true;
+    this.root.add(baseTop);
+
+    const baseBottom = new THREE.Mesh(
+      new THREE.BoxGeometry(2.44, 0.22, 1.44),
+      this.matCarvedOak
+    );
+    baseBottom.position.set(0, -1.34, 0.02);
+    baseBottom.castShadow = true;
+    this.root.add(baseBottom);
+
+    // Decorative corner pilasters (fluted columns on left and right)
+    const pilasterGeo = new THREE.CylinderGeometry(0.11, 0.13, 2.85, 12);
+    [-1.12, 1.12].forEach((xPos) => {
+      const col = new THREE.Mesh(pilasterGeo, this.matCarvedOak);
+      col.position.set(xPos, 0.35, 0.66);
+      col.castShadow = true;
+      this.root.add(col);
+
+      // Brass column capitals & bases
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.12, 0.1, 12), this.matBrass);
+      cap.position.set(xPos, 1.78, 0.66);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 0.1, 12), this.matBrass);
+      base.position.set(xPos, -1.04, 0.66);
+      this.root.add(cap, base);
+    });
+
+    // Subtle CKB Hexagon Emblem and Brass Nameplate on Lower Apron
+    const hexGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.05, 6);
+    hexGeo.rotateX(Math.PI / 2);
+    const hexEmblem = new THREE.Mesh(hexGeo, this.matBrass);
+    hexEmblem.position.set(0, -1.16, 0.84);
+    this.root.add(hexEmblem);
+
+    // Physical Status Lamp Jewel mounted in the center of the CKB Hexagon
+    const lampGeo = new THREE.SphereGeometry(0.055, 14, 14);
+    this.statusLampMesh = new THREE.Mesh(lampGeo, this.matStatusLamp);
+    this.statusLampMesh.position.set(0, -1.16, 0.87);
+    this.root.add(this.statusLampMesh);
+  }
+
+  _buildRoofAndCarvings() {
+    // Steep Black Forest Chalet Roof Slopes
+    const slopeGeo = new THREE.BoxGeometry(2.15, 0.14, 1.82);
+
+    const leftRoof = new THREE.Mesh(slopeGeo, this.matDarkWalnut);
+    leftRoof.position.set(-0.74, 2.52, 0.1);
+    leftRoof.rotation.z = Math.PI / 4.1;
+    leftRoof.castShadow = true;
+    this.root.add(leftRoof);
+
+    const rightRoof = new THREE.Mesh(slopeGeo, this.matDarkWalnut);
+    rightRoof.position.set(0.74, 2.52, 0.1);
+    rightRoof.rotation.z = -Math.PI / 4.1;
+    rightRoof.castShadow = true;
+    this.root.add(rightRoof);
+
+    // Ornate carved front bargeboards with scalloped trim
+    const trimGeo = new THREE.BoxGeometry(2.05, 0.08, 0.08);
+    const leftTrim = new THREE.Mesh(trimGeo, this.matCarvedOak);
+    leftTrim.position.set(-0.71, 2.45, 0.96);
+    leftTrim.rotation.z = Math.PI / 4.1;
+    const rightTrim = new THREE.Mesh(trimGeo, this.matCarvedOak);
+    rightTrim.position.set(0.71, 2.45, 0.96);
+    rightTrim.rotation.z = -Math.PI / 4.1;
+    this.root.add(leftTrim, rightTrim);
+
+    // Crown finial spire at roof apex
+    const finialBase = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 14), this.matBrass);
+    finialBase.position.set(0, 3.25, 0.85);
+    const finialSpire = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.38, 12), this.matBrass);
+    finialSpire.position.set(0, 3.5, 0.85);
+    this.root.add(finialBase, finialSpire);
+
+    // Carved Oak Leaf Clusters flanking the clock face
+    const leafGeo = new THREE.SphereGeometry(0.14, 10, 8);
+    leafGeo.scale(0.6, 1.35, 0.25);
+    const leafPositions = [
+      [-0.95, 0.95, 0.72, 0.4],
+      [-0.98, 0.45, 0.72, 0.25],
+      [-0.92, -0.05, 0.72, -0.2],
+      [0.95, 0.95, 0.72, -0.4],
+      [0.98, 0.45, 0.72, -0.25],
+      [0.92, -0.05, 0.72, 0.2]
+    ];
+    for (const [lx, ly, lz, rotZ] of leafPositions) {
+      const leaf = new THREE.Mesh(leafGeo, this.matCarvedOak);
+      leaf.position.set(lx, ly, lz);
+      leaf.rotation.z = rotZ;
+      this.root.add(leaf);
+    }
+  }
+
+  _buildClockFace() {
+    this.dialGroup = new THREE.Group();
+    this.dialGroup.position.set(0, 0.16, 0.7);
+    this.root.add(this.dialGroup);
+
+    // Outer stepped brass bezel
+    const outerBezel = new THREE.Mesh(
+      new THREE.TorusGeometry(0.78, 0.075, 16, 48),
+      this.matBrass
+    );
+    outerBezel.castShadow = true;
+    this.dialGroup.add(outerBezel);
+
+    const innerBezel = new THREE.Mesh(
+      new THREE.TorusGeometry(0.70, 0.03, 12, 48),
+      this.matAgedBrass
+    );
+    innerBezel.position.z = 0.02;
+    this.dialGroup.add(innerBezel);
+
+    // Cream enamel dial face
+    const dialPlate = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.74, 0.74, 0.04, 48),
+      this.matDialCream
+    );
+    dialPlate.rotation.x = Math.PI / 2;
+    dialPlate.position.z = -0.01;
+    this.dialGroup.add(dialPlate);
+
+    // Recessed inner skeleton window revealing rotating brass gears
+    const recessRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.32, 0.022, 12, 36),
+      this.matAgedBrass
+    );
+    recessRing.position.z = 0.015;
+    this.dialGroup.add(recessRing);
+
+    const recessBack = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.31, 0.31, 0.02, 32),
+      this.matDarkWalnut
+    );
+    recessBack.rotation.x = Math.PI / 2;
+    recessBack.position.z = 0.005;
+    this.dialGroup.add(recessBack);
+
+    // Internal visible mechanical gears
+    this._createGear(0.16, 12, -0.08, 0.04, 0.02, 1.0);
+    this._createGear(0.12, 9, 0.11, -0.05, 0.022, -1.33);
+    this._createGear(0.09, 8, -0.04, -0.13, 0.024, 1.8);
+
+    // 12 Brass Hour Cartouches & Roman Numeral Texture Canvas
+    const dialCanvas = document.createElement('canvas');
+    dialCanvas.width = 512;
+    dialCanvas.height = 512;
+    const ctx = dialCanvas.getContext('2d');
+    ctx.translate(256, 256);
+
+    // Minute railroad track
+    ctx.strokeStyle = '#3a2210';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, 228, 0, Math.PI * 2);
+    ctx.stroke();
+
+    for (let m = 0; m < 60; m++) {
+      const ang = (m / 60) * Math.PI * 2;
+      ctx.save();
+      ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.moveTo(0, -216);
+      ctx.lineTo(0, m % 5 === 0 ? -202 : -210);
+      ctx.lineWidth = m % 5 === 0 ? 4 : 2;
+      ctx.strokeStyle = '#2d180a';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Roman Numerals
+    const romans = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+    ctx.fillStyle = '#231207';
+    ctx.font = 'bold 34px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    for (let h = 0; h < 12; h++) {
+      const ang = (h / 12) * Math.PI * 2;
+      const r = 172;
+      const x = Math.sin(ang) * r;
+      const y = -Math.cos(ang) * r;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(ang);
+      ctx.fillText(romans[h], 0, 0);
+      ctx.restore();
+    }
+
+    // Inscription on dial
+    ctx.fillStyle = '#6e491c';
+    ctx.font = 'bold 14px Georgia, serif';
+    ctx.fillText('NERVOS CKB', 0, -112);
+    ctx.font = '11px Georgia, serif';
+    ctx.fillText('COMMON KNOWLEDGE BASE', 0, 118);
+
+    const dialTex = new THREE.CanvasTexture(dialCanvas);
+    dialTex.colorSpace = THREE.SRGBColorSpace;
+    const dialOverlay = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.42, 1.42),
+      new THREE.MeshBasicMaterial({ map: dialTex, transparent: true })
+    );
+    dialOverlay.position.z = 0.018;
+    this.dialGroup.add(dialOverlay);
+
+    // Clock Hands (Local Device Time)
+    const handMat = new THREE.MeshStandardMaterial({
+      color: 0x1a110b,
+      roughness: 0.25,
+      metalness: 0.7
+    });
+
+    // Hour Hand
+    this.hourHand = new THREE.Group();
+    this.hourHand.position.z = 0.04;
+    const hBlade = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.42, 0.015), this.matBrass);
+    hBlade.position.y = 0.16;
+    const hTip = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.12, 4), this.matBrass);
+    hTip.rotation.y = Math.PI / 4;
+    hTip.position.y = 0.38;
+    this.hourHand.add(hBlade, hTip);
+    this.dialGroup.add(this.hourHand);
+
+    // Minute Hand
+    this.minuteHand = new THREE.Group();
+    this.minuteHand.position.z = 0.055;
+    const mBlade = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.58, 0.015), this.matBrass);
+    mBlade.position.y = 0.24;
+    const mTip = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.12, 4), this.matBrass);
+    mTip.rotation.y = Math.PI / 4;
+    mTip.position.y = 0.54;
+    this.minuteHand.add(mBlade, mTip);
+    this.dialGroup.add(this.minuteHand);
+
+    // Second Hand (Crimson-gold sweeping hand)
+    this.secondHand = new THREE.Group();
+    this.secondHand.position.z = 0.07;
+    const sMat = new THREE.MeshStandardMaterial({ color: 0xd93829, roughness: 0.3, metalness: 0.5 });
+    const sBlade = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.72, 0.01), sMat);
+    sBlade.position.y = 0.22;
+    this.secondHand.add(sBlade);
+    this.dialGroup.add(this.secondHand);
+
+    // Center Arbor Cap
+    const arborCap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 16), this.matBrass);
+    arborCap.position.z = 0.08;
+    this.dialGroup.add(arborCap);
+
+    // Subtle domed glass cover
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.14,
+      roughness: 0.08,
+      metalness: 0.1,
+      reflectivity: 0.9
+    });
+    const glassCover = new THREE.Mesh(new THREE.CylinderGeometry(0.73, 0.73, 0.02, 40), glassMat);
+    glassCover.rotation.x = Math.PI / 2;
+    glassCover.position.z = 0.095;
+    this.dialGroup.add(glassCover);
+  }
+
+  _createGear(radius, teeth, x, y, z, speedFactor) {
+    const gearGroup = new THREE.Group();
+    gearGroup.position.set(x, y, z);
+
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(radius * 0.82, radius * 0.14, 8, 24),
+      this.matBrass
+    );
+    gearGroup.add(rim);
+
+    const hub = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.26, radius * 0.26, 0.02, 12),
+      this.matAgedBrass
+    );
+    hub.rotation.x = Math.PI / 2;
+    gearGroup.add(hub);
+
+    const toothGeo = new THREE.BoxGeometry(radius * 0.22, radius * 0.28, 0.02);
+    for (let i = 0; i < teeth; i++) {
+      const a = (i / teeth) * Math.PI * 2;
+      const tooth = new THREE.Mesh(toothGeo, this.matBrass);
+      tooth.position.set(Math.cos(a) * radius, Math.sin(a) * radius, 0);
+      tooth.rotation.z = a;
+      gearGroup.add(tooth);
+    }
+
+    this.dialGroup.add(gearGroup);
+    this.gears.push({ mesh: gearGroup, speedFactor });
+  }
+
+  _buildCuckooDoorAndInterior() {
+    // Upper Cuckoo Alcove Frame positioned at (0, 1.62, 0.68)
+    this.alcoveGroup = new THREE.Group();
+    this.alcoveGroup.position.set(0, 1.62, 0.66);
+    this.root.add(this.alcoveGroup);
+
+    // Dark interior chamber box
+    const chamberMat = new THREE.MeshStandardMaterial({
+      color: 0x120905,
+      roughness: 0.9,
+      side: THREE.BackSide
+    });
+    const chamber = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.78, 0.85), chamberMat);
+    chamber.position.set(0, 0, -0.38);
+    this.alcoveGroup.add(chamber);
+
+    // Warm interior point light that glows when the door opens
+    this.interiorLight = new THREE.PointLight(0xffb84d, 0.0, 3.2, 1.5);
+    this.interiorLight.position.set(0, 0.15, 0.12);
+    this.alcoveGroup.add(this.interiorLight);
+
+    // Decorative balcony sill below doorway
+    const sill = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.08, 0.24), this.matCarvedOak);
+    sill.position.set(0, -0.41, 0.08);
+    this.alcoveGroup.add(sill);
+
+    // Archway surround trim
+    const leftPillar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.78, 0.1), this.matCarvedOak);
+    leftPillar.position.set(-0.36, 0, 0.03);
+    const rightPillar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.78, 0.1), this.matCarvedOak);
+    rightPillar.position.set(0.36, 0, 0.03);
+    const topLintel = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.1, 0.12), this.matCarvedOak);
+    topLintel.position.set(0, 0.41, 0.04);
+    this.alcoveGroup.add(leftPillar, rightPillar, topLintel);
+
+    // Left & Right Hinged Wooden Shutters (Double Cuckoo Doors)
+    const doorWidth = 0.31;
+    const doorHeight = 0.74;
+    const doorDepth = 0.045;
+
+    // Left Door Pivot on left hinge (-0.315)
+    this.leftDoorPivot = new THREE.Group();
+    this.leftDoorPivot.position.set(-0.315, 0, 0.04);
+    const leftDoorMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(doorWidth, doorHeight, doorDepth),
+      this.matDarkWalnut
+    );
+    leftDoorMesh.position.set(doorWidth / 2, 0, 0);
+    leftDoorMesh.castShadow = true;
+
+    // Brass hinges on left door
+    const hingeGeo = new THREE.BoxGeometry(0.09, 0.035, 0.02);
+    const lHinge1 = new THREE.Mesh(hingeGeo, this.matBrass);
+    lHinge1.position.set(0.04, 0.22, 0.028);
+    const lHinge2 = new THREE.Mesh(hingeGeo, this.matBrass);
+    lHinge2.position.set(0.04, -0.22, 0.028);
+    this.leftDoorPivot.add(leftDoorMesh, lHinge1, lHinge2);
+    this.alcoveGroup.add(this.leftDoorPivot);
+
+    // Right Door Pivot on right hinge (+0.315)
+    this.rightDoorPivot = new THREE.Group();
+    this.rightDoorPivot.position.set(0.315, 0, 0.04);
+    const rightDoorMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(doorWidth, doorHeight, doorDepth),
+      this.matDarkWalnut
+    );
+    rightDoorMesh.position.set(-doorWidth / 2, 0, 0);
+    rightDoorMesh.castShadow = true;
+
+    const rHinge1 = new THREE.Mesh(hingeGeo, this.matBrass);
+    rHinge1.position.set(-0.04, 0.22, 0.028);
+    const rHinge2 = new THREE.Mesh(hingeGeo, this.matBrass);
+    rHinge2.position.set(-0.04, -0.22, 0.028);
+    this.rightDoorPivot.add(rightDoorMesh, rHinge1, rHinge2);
+    this.alcoveGroup.add(this.rightDoorPivot);
+
+    // Add 3D Cuckoo Bird inside the alcove
+    this.bird = new CuckooBird();
+    this.bird.root.position.set(0, -0.1, -0.35);
+    this.alcoveGroup.add(this.bird.root);
+  }
+
+  _buildPendulumAndWeights() {
+    // Swinging Pendulum Pivot inside lower case
+    this.pendulumPivot = new THREE.Group();
+    this.pendulumPivot.position.set(0, -1.15, 0.25);
+    this.root.add(this.pendulumPivot);
+
+    // Wooden pendulum rod
+    const rod = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.025, 1.95, 10),
+      this.matCarvedOak
+    );
+    rod.position.y = -0.95;
+    rod.castShadow = true;
+    this.pendulumPivot.add(rod);
+
+    // Polished Brass Pendulum Bob with CKB Hex Boss
+    const bobGroup = new THREE.Group();
+    bobGroup.position.y = -1.92;
+
+    const bobDisc = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.34, 0.34, 0.08, 32),
+      this.matBrass
+    );
+    bobDisc.rotation.x = Math.PI / 2;
+    bobDisc.castShadow = true;
+    bobGroup.add(bobDisc);
+
+    const bobCenter = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.16, 0.11, 6),
+      this.matAgedBrass
+    );
+    bobCenter.rotation.x = Math.PI / 2;
+    bobGroup.add(bobCenter);
+
+    this.pendulumPivot.add(bobGroup);
+
+    // Two Hanging Pine-Cone Cast Iron Weights on Brass Chains
+    this.weights = [];
+    const weightConfigs = [
+      { x: -0.68, length: 1.65 },
+      { x: 0.68, length: 2.05 }
+    ];
+
+    for (const cfg of weightConfigs) {
+      const wGroup = new THREE.Group();
+      wGroup.position.set(cfg.x, -1.35, 0.15);
+
+      // Brass chain
+      const chain = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.018, cfg.length, 8),
+        this.matAgedBrass
+      );
+      chain.position.y = -cfg.length / 2;
+      wGroup.add(chain);
+
+      // Pine-cone weight body
+      const coneBody = new THREE.Mesh(
+        new THREE.ConeGeometry(0.17, 0.68, 14),
+        this.matIronWeight
+      );
+      coneBody.rotation.x = Math.PI;
+      coneBody.position.y = -cfg.length - 0.32;
+      coneBody.castShadow = true;
+
+      const coneTop = new THREE.Mesh(
+        new THREE.SphereGeometry(0.165, 14, 10),
+        this.matIronWeight
+      );
+      coneTop.position.y = -cfg.length - 0.04;
+
+      const hookRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.045, 0.012, 8, 16),
+        this.matBrass
+      );
+      hookRing.position.y = -cfg.length + 0.06;
+
+      wGroup.add(coneBody, coneTop, hookRing);
+      this.root.add(wGroup);
+      this.weights.push({ group: wGroup, baseY: -1.35 });
+    }
+  }
+
+  /**
+   * Update status lamp color on the clock apron.
+   */
+  setConnectionState(state) {
+    let hex = 0xf5a623; // CONNECTING / RECONNECTING
+    if (state === 'LIVE') hex = 0x00f59b;
+    else if (state === 'HTTP FALLBACK') hex = 0x38c6f4;
+    else if (state === 'OFFLINE') hex = 0xe74c3c;
+
+    this.matStatusLamp.color.setHex(hex);
+    this.matStatusLamp.emissive.setHex(hex);
+  }
+
+  /**
+   * Start the 7.2-second mechanical cuckoo sequence for a newly arrived canonical block.
+   */
+  triggerCuckooSequence(onMidpointReveal, onFinished) {
+    this.seqActive = true;
+    this.seqTime = 0;
+    this.seqCall1Fired = false;
+    this.seqCall2Fired = false;
+    this.seqDoorOpenSoundFired = false;
+    this.seqDoorCloseSoundFired = false;
+    this.onSequenceMidpoint = onMidpointReveal;
+    this.onSequenceFinished = onFinished;
+
+    // Initial mechanical winding click
+    this.audio.playMechanicalClick(680);
+  }
+
+  /**
+   * Per-frame update of hands, pendulum, gears, and active cuckoo sequence.
+   */
+  update(dt, elapsed) {
+    // 1. Real-time Local Device Clock Hands (continuous motion)
+    const now = new Date();
+    const ms = now.getMilliseconds();
+    const seconds = now.getSeconds() + ms / 1000;
+    const minutes = now.getMinutes() + seconds / 60;
+    const hours = (now.getHours() % 12) + minutes / 60;
+
+    this.secondHand.rotation.z = -(seconds / 60) * Math.PI * 2;
+    this.minuteHand.rotation.z = -(minutes / 60) * Math.PI * 2;
+    this.hourHand.rotation.z = -(hours / 12) * Math.PI * 2;
+
+    // 2. Continuous Pendulum Swing & Escapement Tick
+    const swingFreq = 3.15; // ~1 full period every 2 seconds
+    const swingAmp = this.seqActive ? 0.30 : 0.25;
+    const pendulumAngle = Math.sin(elapsed * swingFreq) * swingAmp;
+    this.pendulumPivot.rotation.z = pendulumAngle;
+
+    const currentSide = pendulumAngle >= 0 ? 1 : -1;
+    if (currentSide !== this.lastSecondSide) {
+      this.lastSecondSide = currentSide;
+      this.audio.playTick(currentSide > 0);
+    }
+
+    // 3. Internal Brass Gears Rotation
+    const gearMultiplier = this.seqActive ? 5.5 : 1.0;
+    for (const g of this.gears) {
+      g.mesh.rotation.z += dt * 0.45 * g.speedFactor * gearMultiplier;
+    }
+
+    // 4. Active Cuckoo Sequence Choreography
+    if (!this.seqActive) {
+      this.root.position.x = 0;
+      this.root.position.y = 0;
+      this.leftDoorPivot.rotation.y = 0;
+      this.rightDoorPivot.rotation.y = 0;
+      this.interiorLight.intensity = 0;
+      this.bird.update(0, 0, elapsed);
+      return;
+    }
+
+    this.seqTime += dt;
+    const t = this.seqTime;
+
+    // Smooth helper functions
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+    const smoothstep = (edge0, edge1, x) => {
+      const k = clamp01((x - edge0) / (edge1 - edge0));
+      return k * k * (3 - 2 * k);
+    };
+
+    // 0.0–0.5s: Mechanical wind-up vibration
+    if (t < 0.5) {
+      const vib = Math.sin(t * 75) * 0.012;
+      this.root.position.x = vib;
+    } else {
+      this.root.position.x = 0;
+    }
+
+    // Door angle: opens 0.5–1.2s, stays open until 6.4s, closes 6.4–7.1s
+    let doorProgress = 0;
+    if (t >= 0.5 && t < 6.4) {
+      doorProgress = smoothstep(0.5, 1.15, t);
+      if (!this.seqDoorOpenSoundFired) {
+        this.seqDoorOpenSoundFired = true;
+        this.audio.playMechanicalClick(840);
+      }
+    } else if (t >= 6.4) {
+      doorProgress = 1.0 - smoothstep(6.4, 7.05, t);
+      if (!this.seqDoorCloseSoundFired && t >= 6.95) {
+        this.seqDoorCloseSoundFired = true;
+        this.audio.playMechanicalClick(460);
+      }
+    }
+
+    const maxDoorAngle = Math.PI * 0.68;
+    this.leftDoorPivot.rotation.y = -doorProgress * maxDoorAngle;
+    this.rightDoorPivot.rotation.y = doorProgress * maxDoorAngle;
+
+    // Warm internal lantern glow
+    this.interiorLight.intensity = doorProgress * 4.5;
+
+    // Bird emergence: slides out 1.15–1.95s, stays out until 5.5s, retreats 5.5–6.4s
+    let birdExtend = 0;
+    if (t >= 1.15 && t < 5.5) {
+      birdExtend = smoothstep(1.15, 1.95, t);
+    } else if (t >= 5.5) {
+      birdExtend = 1.0 - smoothstep(5.5, 6.4, t);
+    }
+
+    // Two cuckoo calls during 2.0–3.6s
+    let callIntensity = 0;
+    if (t >= 2.05 && t < 2.65) {
+      callIntensity = Math.sin(((t - 2.05) / 0.6) * Math.PI);
+      if (!this.seqCall1Fired) {
+        this.seqCall1Fired = true;
+        this.audio.playCuckooCall();
+      }
+    } else if (t >= 2.85 && t < 3.45) {
+      callIntensity = Math.sin(((t - 2.85) / 0.6) * Math.PI);
+      if (!this.seqCall2Fired) {
+        this.seqCall2Fired = true;
+        this.audio.playCuckooCall();
+      }
+    }
+
+    // Reveal block information on plaque at t >= 2.3s
+    if (t >= 2.3 && this.onSequenceMidpoint) {
+      const cb = this.onSequenceMidpoint;
+      this.onSequenceMidpoint = null;
+      cb();
+    }
+
+    // Subtle weight drop & rebound during strike
+    for (let i = 0; i < this.weights.length; i++) {
+      const w = this.weights[i];
+      w.group.position.y = w.baseY - Math.sin(clamp01(t / this.seqDuration) * Math.PI) * 0.08 * (i === 0 ? 1 : -0.6);
+    }
+
+    this.bird.update(birdExtend, callIntensity, elapsed);
+
+    if (t >= this.seqDuration) {
+      this.seqActive = false;
+      this.leftDoorPivot.rotation.y = 0;
+      this.rightDoorPivot.rotation.y = 0;
+      this.interiorLight.intensity = 0;
+      this.bird.update(0, 0, elapsed);
+      if (this.onSequenceFinished) {
+        const done = this.onSequenceFinished;
+        this.onSequenceFinished = null;
+        done();
+      }
+    }
+  }
+}
+
+/* ============================================================================
+ * 6. SCENE CONTROLLER & UI ORCHESTRATION
+ * ============================================================================ */
+
+class SceneController {
+  constructor() {
+    this.container = document.getElementById('canvas-container');
+    this.audio = new AudioEngine();
+    this.currentBlock = null;
+    this.lastInteractionTime = performance.now();
+    this.isUserInteracting = false;
+
+    this._initThree();
+    this._initLights();
+    this._initDustMotes();
+
+    this.clockModel = new CuckooClock(this.scene, this.audio);
+
+    this.queue = new BlockEventQueue(
+      (block) => this._executeBlockCuckoo(block),
+      (count) => this._updateQueueBadge(count)
+    );
+
+    this.connection = new CKBConnection({
+      onBaselineTip: (block) => {
+        this.queue.registerBaselineHash(block.hash);
+        this.currentBlock = block;
+        this._renderBlockPlaque(block, false);
+      },
+      onNewBlock: (block) => {
+        this.queue.enqueue(block);
+      },
+      onStatusChange: (state, label) => {
+        this._updateStatusIndicator(state, label);
+      }
+    });
+
+    this._bindUIEvents();
+    this.connection.start();
+
+    this.clock = new THREE.Clock();
+    this._animate = this._animate.bind(this);
+    requestAnimationFrame(this._animate);
+  }
+
+  _initThree() {
+    this.scene = new THREE.Scene();
+    this.scene.fog = new THREE.FogExp2(0x0b0806, 0.055);
+
+    this.camera = new THREE.PerspectiveCamera(
+      42,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      50
+    );
+    this._applyResponsiveCameraFraming();
+
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.container.appendChild(this.renderer.domElement);
+
+    // Constrained touch/mouse OrbitControls
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.target.set(0, 0.25, 0);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.06;
+    this.controls.enablePan = false;
+    this.controls.minDistance = 4.8;
+    this.controls.maxDistance = 12.5;
+    this.controls.minPolarAngle = Math.PI * 0.30;
+    this.controls.maxPolarAngle = Math.PI * 0.66;
+    this.controls.minAzimuthAngle = -Math.PI * 0.32;
+    this.controls.maxAzimuthAngle = Math.PI * 0.32;
+
+    this.controls.addEventListener('start', () => {
+      this.isUserInteracting = true;
+      this.lastInteractionTime = performance.now();
+    });
+    this.controls.addEventListener('end', () => {
+      this.isUserInteracting = false;
+      this.lastInteractionTime = performance.now();
+    });
+
+    window.addEventListener('resize', () => this._onResize());
+  }
+
+  _applyResponsiveCameraFraming() {
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    // Portrait phones need slightly greater distance so roof + pendulum fit comfortably
+    this.defaultCamPos = new THREE.Vector3(0, 0.35, aspect < 0.75 ? 9.4 : 7.8);
+    if (!this.controls) {
+      this.camera.position.copy(this.defaultCamPos);
+    }
+  }
+
+  _initLights() {
+    const hemi = new THREE.HemisphereLight(0xffe4b5, 0x1c120c, 0.75);
+    this.scene.add(hemi);
+
+    const keyLight = new THREE.DirectionalLight(0xffdfa8, 2.2);
+    keyLight.position.set(3.8, 5.2, 5.5);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 1024;
+    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.camera.near = 1;
+    keyLight.shadow.camera.far = 16;
+    const d = 4.5;
+    keyLight.shadow.camera.left = -d;
+    keyLight.shadow.camera.right = d;
+    keyLight.shadow.camera.top = d;
+    keyLight.shadow.camera.bottom = -d;
+    keyLight.shadow.bias = -0.0015;
+    this.scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0xd49b4b, 0.9);
+    rimLight.position.set(-4.0, 2.5, 2.0);
+    this.scene.add(rimLight);
+  }
+
+  _initDustMotes() {
+    const count = 65;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = (Math.random() - 0.5) * 6.0;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 7.0;
+      positions[i * 3 + 2] = (Math.random() - 0.2) * 3.5;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xf5d684,
+      size: 0.045,
+      transparent: true,
+      opacity: 0.38,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    this.dustPoints = new THREE.Points(geo, mat);
+    this.scene.add(this.dustPoints);
+  }
+
+  _executeBlockCuckoo(block) {
+    this.clockModel.triggerCuckooSequence(
+      () => {
+        this.currentBlock = block;
+        this._renderBlockPlaque(block, true);
+      },
+      () => {
+        this.queue.notifyAnimationComplete();
+      }
+    );
+  }
+
+  _renderBlockPlaque(block, highlight) {
+    if (!block) return;
+
+    const plaqueEl = document.getElementById('brass-plaque');
+    const demoBadge = document.getElementById('demo-badge');
+    document.getElementById('plaque-height').textContent = `#${block.number.toLocaleString()}`;
+    document.getElementById('plaque-txs').textContent =
+      `${block.txCount} TX${block.txCount === 1 ? '' : 's'} (incl. Cellbase)`;
+    document.getElementById('plaque-time').textContent = block.timestampFormatted;
+    document.getElementById('plaque-epoch').textContent = block.epochFormatted;
+    document.getElementById('plaque-hash').textContent = CkbUtils.shortenHash(block.hash);
+
+    if (block.isDemo) {
+      demoBadge.classList.add('visible');
+    } else {
+      demoBadge.classList.remove('visible');
+    }
+
+    if (highlight) {
+      plaqueEl.classList.add('illuminated');
+      setTimeout(() => plaqueEl.classList.remove('illuminated'), 3400);
+    }
+  }
+
+  _updateStatusIndicator(state, label) {
+    const lamp = document.getElementById('status-lamp');
+    const text = document.getElementById('status-text');
+    text.textContent = label;
+
+    lamp.className = 'status-lamp';
+    if (state === 'LIVE') lamp.classList.add('live');
+    else if (state === 'HTTP FALLBACK') lamp.classList.add('fallback');
+    else if (state === 'OFFLINE') lamp.classList.add('offline');
+
+    this.clockModel.setConnectionState(state);
+  }
+
+  _updateQueueBadge(count) {
+    const pill = document.getElementById('queue-pill');
+    if (count > 0) {
+      pill.textContent = `QUEUED BLOCKS: ${count}`;
+      pill.classList.add('visible');
+    } else {
+      pill.classList.remove('visible');
+    }
+  }
+
+  _bindUIEvents() {
+    // Audio Toggle
+    const btnAudio = document.getElementById('btn-audio');
+    const iconMuted = document.getElementById('icon-muted');
+    const iconUnmuted = document.getElementById('icon-unmuted');
+
+    btnAudio.addEventListener('click', () => {
+      const enabled = this.audio.toggle();
+      btnAudio.classList.toggle('active', enabled);
+      iconMuted.style.display = enabled ? 'none' : 'block';
+      iconUnmuted.style.display = enabled ? 'block' : 'none';
+    });
+
+    // Copy Hash button
+    const btnCopy = document.getElementById('btn-copy-hash');
+    btnCopy.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!this.currentBlock || !this.currentBlock.hash) return;
+      navigator.clipboard?.writeText(this.currentBlock.hash);
+      btnCopy.textContent = 'COPIED';
+      setTimeout(() => { btnCopy.textContent = 'COPY'; }, 1500);
+    });
+
+    // Plaque Tap -> Open Detail Drawer
+    const plaque = document.getElementById('brass-plaque');
+    const modalDetails = document.getElementById('modal-details');
+    plaque.addEventListener('click', () => {
+      if (!this.currentBlock) return;
+      this._populateDetailDrawer(this.currentBlock);
+      modalDetails.classList.add('open');
+    });
+    document.getElementById('btn-close-details').addEventListener('click', () => {
+      modalDetails.classList.remove('open');
+    });
+    modalDetails.addEventListener('click', (e) => {
+      if (e.target === modalDetails) modalDetails.classList.remove('open');
+    });
+
+    // Settings Modal
+    const modalSettings = document.getElementById('modal-settings');
+    const inputWs = document.getElementById('input-ws-url');
+    const inputHttp = document.getElementById('input-http-url');
+
+    document.getElementById('btn-settings').addEventListener('click', () => {
+      inputWs.value = this.connection.wsUrl;
+      inputHttp.value = this.connection.httpUrl;
+      modalSettings.classList.add('open');
+    });
+    document.getElementById('btn-close-settings').addEventListener('click', () => {
+      modalSettings.classList.remove('open');
+    });
+    modalSettings.addEventListener('click', (e) => {
+      if (e.target === modalSettings) modalSettings.classList.remove('open');
+    });
+
+    document.getElementById('btn-save-rpc').addEventListener('click', () => {
+      this.connection.updateEndpoints(inputWs.value, inputHttp.value);
+      modalSettings.classList.remove('open');
+    });
+
+    document.getElementById('btn-reset-rpc').addEventListener('click', () => {
+      this.connection.resetDefaults();
+      inputWs.value = this.connection.wsUrl;
+      inputHttp.value = this.connection.httpUrl;
+      modalSettings.classList.remove('open');
+    });
+
+    // Demo Cuckoo Button (clearly marked [DEMO], never contaminates live state)
+    document.getElementById('btn-trigger-demo').addEventListener('click', () => {
+      modalSettings.classList.remove('open');
+      const baseHeight = this.currentBlock ? this.currentBlock.number + 1 : 18540210;
+      const randHex = () => '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+      // Packed epoch: length=1800 (0x0708), index=412 (0x019c), number=14321 (0x0037f1)
+      const packedEpochHex = '0x' + ((1800n << 40n) | (412n << 24n) | 14321n).toString(16);
+      const demoBlock = CkbUtils.normalizeBlock({
+        header: {
+          hash: randHex(),
+          parent_hash: this.currentBlock ? this.currentBlock.hash : randHex(),
+          number: '0x' + baseHeight.toString(16),
+          timestamp: '0x' + Date.now().toString(16),
+          epoch: packedEpochHex,
+          transactions_root: randHex(),
+          compact_target: '0x1a08a97e',
+          nonce: '0x' + Math.floor(Math.random() * 1e15).toString(16),
+          version: '0x0'
+        },
+        transactions: Array.from({ length: 8 }, () => ({ outputs: [{}, {}] })),
+        proposals: ['0x1', '0x2']
+      }, true);
+
+      this.queue.enqueue(demoBlock);
+    });
+  }
+
+  _populateDetailDrawer(b) {
+    document.getElementById('detail-modal-title').textContent =
+      b.isDemo ? `DEMO BLOCK #${b.number.toLocaleString()}` : `CANONICAL BLOCK #${b.number.toLocaleString()}`;
+
+    const rows = [
+      ['Block Height', `${b.number.toLocaleString()} (${b.numberHex})`],
+      ['Block Hash', b.hash],
+      ['Transactions Count', `${b.txCount} (includes Cellbase transaction)`],
+      ['Timestamp (Local)', b.timestampFull],
+      ['Decoded Epoch', `${b.epochFormatted} (Raw: ${b.epoch.rawHex})`],
+      ['Parent Hash', b.parentHash],
+      ['Transactions Root', b.transactionsRoot],
+      ['Proposals Count', String(b.proposalsCount)],
+      ['Compact Target', b.compactTarget],
+      ['Nonce', b.nonce],
+      ['Version', b.version]
+    ];
+
+    const list = document.getElementById('detail-list');
+    list.innerHTML = rows.map(([label, val]) => `
+      <div class="detail-row">
+        <div class="d-label">${label}</div>
+        <div class="d-val">${val}</div>
+      </div>
+    `).join('');
+  }
+
+  _onResize() {
+    this.camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    this.camera.updateProjectionMatrix();
+    this._applyResponsiveCameraFraming();
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  _animate() {
+    requestAnimationFrame(this._animate);
+    if (document.hidden) return;
+
+    const dt = Math.min(this.clock.getDelta(), 0.1);
+    const elapsed = this.clock.getElapsedTime();
+
+    this.clockModel.update(dt, elapsed);
+
+    // Subtle floating dust motes
+    if (this.dustPoints) {
+      this.dustPoints.rotation.y = Math.sin(elapsed * 0.12) * 0.08;
+      this.dustPoints.position.y = Math.sin(elapsed * 0.25) * 0.08;
+    }
+
+    // Gently ease camera back toward hero framing after 5s of touch inactivity
+    if (!this.isUserInteracting && performance.now() - this.lastInteractionTime > 5000) {
+      const targetPos = new THREE.Vector3(
+        Math.sin(elapsed * 0.22) * 0.35,
+        this.defaultCamPos.y + Math.cos(elapsed * 0.18) * 0.12,
+        this.defaultCamPos.z
+      );
+      this.camera.position.lerp(targetPos, dt * 0.65);
+    }
+
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  new SceneController();
+});
+</script>
+</body>
+</html>

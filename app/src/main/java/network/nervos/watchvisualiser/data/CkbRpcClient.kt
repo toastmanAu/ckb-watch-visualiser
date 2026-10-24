@@ -23,6 +23,7 @@ class CkbRpcClient(
     private var lastProcessedBlockHash: String? = null
     private var pollJob: Job? = null
 
+    var onBaselineLoaded: ((CkbBlockData) -> Unit)? = null
     var onBlockDetected: ((CkbBlockData) -> Unit)? = null
     var onStatusChanged: ((String) -> Unit)? = null
 
@@ -48,7 +49,7 @@ class CkbRpcClient(
         pollJob?.cancel()
         pollJob = scope.launch(Dispatchers.IO) {
             onStatusChanged?.invoke("CONNECTING")
-            // Fetch initial tip
+            // Fetch initial baseline tip (do not trigger new-block animation on load)
             try {
                 val tip = getTipHeader()
                 if (tip != null) {
@@ -57,37 +58,38 @@ class CkbRpcClient(
                     val blockNum = parseHexLong(numberHex)
                     lastProcessedBlockHash = hash
                     onStatusChanged?.invoke("LIVE: #$blockNum")
+
+                    val fullBlock = getBlock(hash)
+                    val baselineData = buildBlockData(tip, fullBlock)
+                    withContext(Dispatchers.Main) {
+                        onBaselineLoaded?.invoke(baselineData)
+                    }
                 }
             } catch (e: Exception) {
                 onStatusChanged?.invoke("RPC ERROR")
             }
 
-            // Polling loop
+            // Polling loop (every ~3.2s for responsive block arrival)
             while (isActive && isRunning) {
-                delay(7000)
+                delay(3200)
                 try {
                     val tip = getTipHeader() ?: continue
                     val hash = tip.optString("hash")
                     if (hash.isNotEmpty() && hash != lastProcessedBlockHash) {
+                        val wasBaselineMissing = (lastProcessedBlockHash == null)
                         lastProcessedBlockHash = hash
                         val blockNum = parseHexLong(tip.optString("number"))
                         onStatusChanged?.invoke("NEW BLOCK #$blockNum")
 
                         val fullBlock = getBlock(hash)
-                        if (fullBlock != null) {
-                            val cells = extractCells(fullBlock)
-                            val txArray = fullBlock.optJSONArray("transactions")
-                            val txCount = txArray?.length() ?: 0
-                            val blockData = CkbBlockData(
-                                blockNumber = blockNum,
-                                blockHash = hash,
-                                txCount = txCount,
-                                cells = cells
-                            )
-                            withContext(Dispatchers.Main) {
+                        val blockData = buildBlockData(tip, fullBlock)
+                        withContext(Dispatchers.Main) {
+                            if (wasBaselineMissing) {
+                                onBaselineLoaded?.invoke(blockData)
+                            } else {
                                 onBlockDetected?.invoke(blockData)
-                                onStatusChanged?.invoke("LIVE: #$blockNum")
                             }
+                            onStatusChanged?.invoke("LIVE: #$blockNum")
                         }
                     }
                 } catch (e: Exception) {
@@ -95,6 +97,40 @@ class CkbRpcClient(
                 }
             }
         }
+    }
+
+    private fun buildBlockData(headerJson: JSONObject, fullBlockJson: JSONObject?): CkbBlockData {
+        val hdr = fullBlockJson?.optJSONObject("header") ?: headerJson
+        val hash = hdr.optString("hash")
+        val blockNum = parseHexLong(hdr.optString("number"))
+        val timestampMs = parseHexLong(hdr.optString("timestamp"))
+        val epochRaw = parseHexLong(hdr.optString("epoch"))
+        val epochNumber = epochRaw and 0xFFFFFFL
+        val epochIndex = (epochRaw ushr 24) and 0xFFFFL
+        val epochLength = (epochRaw ushr 40) and 0xFFFFL
+
+        val cells = if (fullBlockJson != null) extractCells(fullBlockJson) else emptyList()
+        val txArray = fullBlockJson?.optJSONArray("transactions")
+        val txCount = txArray?.length() ?: 1
+        val proposalsCount = fullBlockJson?.optJSONArray("proposals")?.length() ?: 0
+
+        return CkbBlockData(
+            blockNumber = blockNum,
+            blockHash = hash,
+            txCount = txCount,
+            cells = cells,
+            timestampMs = timestampMs,
+            epochNumber = epochNumber,
+            epochIndex = epochIndex,
+            epochLength = epochLength,
+            parentHash = hdr.optString("parent_hash", "0x0"),
+            transactionsRoot = hdr.optString("transactions_root", "0x0"),
+            proposalsCount = proposalsCount,
+            compactTarget = hdr.optString("compact_target", "0x0"),
+            nonce = hdr.optString("nonce", "0x0"),
+            version = parseHexLong(hdr.optString("version", "0x0")).toString(),
+            isDemo = false
+        )
     }
 
     private fun rpcCall(method: String, params: JSONArray): JSONObject? {
@@ -196,17 +232,19 @@ class CkbRpcClient(
             blockNumber = blockNum,
             blockHash = mockHash,
             txCount = (count / 3) + 1,
-            cells = mockCells
+            cells = mockCells,
+            timestampMs = System.currentTimeMillis(),
+            epochNumber = 14321L,
+            epochIndex = 622L,
+            epochLength = 1800L,
+            isDemo = true
         )
     }
 
     private fun parseHexLong(hex: String): Long {
         return try {
-            if (hex.startsWith("0x", ignoreCase = true)) {
-                hex.substring(2).toLong(16)
-            } else {
-                hex.toLong(16)
-            }
+            val clean = if (hex.startsWith("0x", ignoreCase = true)) hex.substring(2) else hex
+            if (clean.isEmpty()) 0L else BigInteger(clean, 16).toLong()
         } catch (e: Exception) {
             0L
         }
@@ -235,7 +273,18 @@ data class CkbBlockData(
     val blockNumber: Long,
     val blockHash: String,
     val txCount: Int,
-    val cells: List<CkbCellSpecimen>
+    val cells: List<CkbCellSpecimen>,
+    val timestampMs: Long = System.currentTimeMillis(),
+    val epochNumber: Long = 0L,
+    val epochIndex: Long = 0L,
+    val epochLength: Long = 1800L,
+    val parentHash: String = "0x0",
+    val transactionsRoot: String = "0x0",
+    val proposalsCount: Int = 0,
+    val compactTarget: String = "0x1a08a97e",
+    val nonce: String = "0x0",
+    val version: String = "0",
+    val isDemo: Boolean = false
 )
 
 data class CkbCellSpecimen(
