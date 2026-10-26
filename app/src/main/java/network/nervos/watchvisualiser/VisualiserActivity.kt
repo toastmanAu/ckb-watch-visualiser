@@ -13,11 +13,12 @@ import network.nervos.watchvisualiser.ui.BonsaiVisualiserView
 import network.nervos.watchvisualiser.ui.CuckooVisualiserView
 import network.nervos.watchvisualiser.ui.LabVisualiserView
 import network.nervos.watchvisualiser.ui.LegoTowerVisualiserView
+import network.nervos.watchvisualiser.ui.SharkRaftVisualiserView
 
 /**
  * Native Wear OS Activity housing the visualizer selected by the user.
  * Seamlessly routes to LabVisualiserView, BonsaiVisualiserView, CuckooVisualiserView,
- * or LegoTowerVisualiserView with full Pixel Watch 3 Digital Crown / Rotary Encoder support.
+ * LegoTowerVisualiserView, or SharkRaftVisualiserView with full Pixel Watch 3 Digital Crown support.
  */
 class VisualiserActivity : ComponentActivity() {
 
@@ -25,6 +26,7 @@ class VisualiserActivity : ComponentActivity() {
     private var bonsaiView: BonsaiVisualiserView? = null
     private var cuckooView: CuckooVisualiserView? = null
     private var bricksView: LegoTowerVisualiserView? = null
+    private var sharksView: SharkRaftVisualiserView? = null
     private lateinit var preferences: AppPreferences
     private lateinit var rpcClient: CkbRpcClient
 
@@ -52,6 +54,10 @@ class VisualiserActivity : ComponentActivity() {
                 bricksView = LegoTowerVisualiserView(this)
                 setContentView(bricksView)
             }
+            "ckb_sharks" -> {
+                sharksView = SharkRaftVisualiserView(this)
+                setContentView(sharksView)
+            }
             else -> {
                 labView = LabVisualiserView(this)
                 setContentView(labView)
@@ -63,16 +69,19 @@ class VisualiserActivity : ComponentActivity() {
             onBaselineLoaded = { baseline ->
                 cuckooView?.onBaselineLoaded(baseline)
                 bricksView?.onBaselineLoaded(baseline)
+                sharksView?.onBaselineLoaded(baseline)
             }
             onBlockDetected = { blockData ->
                 labView?.onBlockArrived(blockData)
                 bonsaiView?.onBlockArrived(blockData)
                 cuckooView?.onBlockArrived(blockData)
                 bricksView?.onBlockArrived(blockData)
+                sharksView?.onBlockArrived(blockData)
             }
             onStatusChanged = { status ->
                 cuckooView?.onStatusUpdated(status)
                 bricksView?.onStatusUpdated(status)
+                sharksView?.onStatusUpdated(status)
             }
             start()
         }
@@ -91,6 +100,7 @@ class VisualiserActivity : ComponentActivity() {
             bonsaiView?.handleRotaryScroll(delta)
             cuckooView?.handleRotaryScroll(delta)
             bricksView?.handleRotaryScroll(delta)
+            sharksView?.handleRotaryScroll(delta)
             return true
         }
         return super.onGenericMotionEvent(event)

@@ -41,18 +41,25 @@ Reconstructs the active Nervos CKB Epoch as a 3D architectural tower of interloc
 | :---: | :---: | :---: |
 | <img src="screenshots/watch_bricks_tower.png" width="220" alt="Epoch Brick Tower" /> | <img src="screenshots/watch_bricks_hero.png" width="220" alt="Hero Brick Presentation" /> | <img src="screenshots/watch_bricks_details.png" width="220" alt="Epoch Details" /> |
 
+### 5. Exhibition: CKB Shark Raft (`ToastmanAnim.glb`)
+Visualizes live Nervos CKB transactions in each newly mined block as **3D sharks circling a buoyant wooden log raft in the open ocean** (`1 Shark = 1 Transaction`, including the cellbase transaction). Both the standalone Three.js exhibit (`sharks.html`) and the native Wear OS engine (`SharkRaftVisualiserView.kt`) load and animate the supplied `ToastmanAnim.glb` 3D character and its 664-frame `Action` skeletal animation clip directly on top of the pitching wooden raft!
+
+| Live Ocean Shark Arena | Toastman `Action` Orbit | Block & Shark Inspector |
+| :---: | :---: | :---: |
+| <img src="screenshots/watch_sharks_overview.png" width="220" alt="Shark Raft Live Block" /> | <img src="screenshots/watch_sharks_surge.png" width="220" alt="Toastman on Wooden Raft" /> | <img src="screenshots/watch_sharks_inspector.png" width="220" alt="Shark Raft Inspector" /> |
+
 ---
 
 ## 🌟 Core Architecture
 
 ### Dual-Engine Design
-1. **Native Wear OS 60 FPS Canvas Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`, `LegoTowerVisualiserView.kt`):
+1. **Native Wear OS 60 FPS Canvas & GLB Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`, `LegoTowerVisualiserView.kt`, `SharkRaftVisualiserView.kt`):
    - Standard Android `WebView` is omitted on Wear OS devices to conserve RAM and storage.
-   - We engineered a zero-overhead, hardware-accelerated native 2D/3D renderer running at a locked 60 FPS on the Pixel Watch 3 GPU.
+   - We engineered a zero-overhead, hardware-accelerated native 2D/3D renderer running at a locked 60 FPS on the Pixel Watch 3 GPU, including a native binary glTF 2.0 (`.glb`) parser and 2-bone skeletal skinning engine for `ToastmanAnim.glb`.
    - Direct coroutine-based JSON-RPC streaming over Wi-Fi/Bluetooth proxy with minimal battery consumption.
-2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`, `bricks.html`):
+2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`, `bricks.html`, `sharks.html`):
    - Standalone single-file HTML/CSS/JavaScript implementations.
-   - Procedural 3D geometry, `InstancedMesh` LEGO brick rendering, refractive Fresnel glass materials, hinged mechanical clockwork, particle vortices, and Web Audio API sound synthesis.
+   - Procedural 3D geometry, `GLTFLoader` + `AnimationMixer` character animation, custom GLSL Gerstner ocean shaders, `InstancedMesh` LEGO brick rendering, refractive Fresnel glass materials, hinged mechanical clockwork, and Web Audio API sound synthesis.
    - Smooth museum-turntable auto-orbit with pinch-to-zoom and touch drag controls.
 
 ---
@@ -102,6 +109,8 @@ watch-visualiser/
 ├── bonsai.html                  # Japanese Maple Bonsai (Three.js Web Exhibit)
 ├── cuckoo.html                  # Mechanical Cuckoo Clock (Three.js Web Exhibit)
 ├── bricks.html                  # Epoch LEGO Brick Tower (Three.js Web Exhibit)
+├── sharks.html                  # CKB Shark Raft (Three.js + GLTFLoader Web Exhibit)
+├── ToastmanAnim.glb             # Supplied 3D Toastman character with Action animation
 ├── three.min.js                 # Bundled Three.js engine for offline execution
 ├── server.py                    # Zero-dependency local dev server with auto port detection
 ├── build.gradle.kts             # Root Gradle build script
@@ -113,11 +122,14 @@ watch-visualiser/
     ├── build.gradle.kts         # Wear OS application module (Compose for Wear OS)
     └── src/main/
         ├── AndroidManifest.xml  # Standalone watch app declaration & permissions
-        ├── assets/visualisers/  # Bundled offline visualizer web apps
+        ├── assets/visualisers/  # Bundled offline visualizer web apps & 3D GLB assets
         │   ├── ckb-cell-lab/index.html
         │   ├── ckb-bonsai/index.html
         │   ├── ckb-cuckoo/index.html
-        │   └── ckb-bricks/index.html
+        │   ├── ckb-bricks/index.html
+        │   └── ckb-sharks/
+        │       ├── index.html
+        │       └── ToastmanAnim.glb
         ├── java/network/nervos/watchvisualiser/
         │   ├── MainActivity.kt        # Rotary-scrollable Wear OS Compose menu
         │   ├── VisualiserActivity.kt  # Native visualizer activity dispatcher
@@ -130,7 +142,8 @@ watch-visualiser/
         │       ├── LabVisualiserView.kt       # 60 FPS Native Cell Lab renderer
         │       ├── BonsaiVisualiserView.kt    # 60 FPS Native Bonsai renderer
         │       ├── CuckooVisualiserView.kt    # 60 FPS Native Cuckoo Clock renderer
-        │       └── LegoTowerVisualiserView.kt # 60 FPS Native Epoch Brick Tower renderer
+        │       ├── LegoTowerVisualiserView.kt # 60 FPS Native Epoch Brick Tower renderer
+        │       └── SharkRaftVisualiserView.kt # 60 FPS Native Shark Raft & GLB renderer
         └── res/                       # Vector drawables, colors, strings
 ```
 
@@ -148,8 +161,9 @@ Open in any browser:
 - **Japanese Maple Bonsai**: [http://localhost:8084/bonsai.html](http://localhost:8084/bonsai.html)
 - **Mechanical Cuckoo Clock**: [http://localhost:8084/cuckoo.html](http://localhost:8084/cuckoo.html)
 - **Epoch Brick Tower**: [http://localhost:8084/bricks.html](http://localhost:8084/bricks.html)
+- **CKB Shark Raft (`ToastmanAnim.glb`)**: [http://localhost:8084/sharks.html](http://localhost:8084/sharks.html)
 
-*Tip: Click the gear icon $\rightarrow$ **"TEST BLOCK"**, **"DEMO CUCKOO"**, or **"DEMO NEW BLOCK"** to simulate an immediate CKB block event.*
+*Tip: Click the gear icon $\rightarrow$ **"TEST BLOCK"**, **"DEMO CUCKOO"**, **"DEMO NEW BLOCK"**, or **"SIMULATE"** to trigger an immediate CKB block event.*
 
 ---
 
@@ -196,6 +210,7 @@ The [`VisualiserRegistry.kt`](app/src/main/java/network/nervos/watchvisualiser/d
 - [x] **Japanese Maple Bonsai** (ACTIVE) — Newly created Cells falling as vibrant autumn leaves.
 - [x] **Mechanical Cuckoo Clock** (ACTIVE) — Black Forest chalet clock that chimes & reveals decoded Epoch state on every canonical block.
 - [x] **Epoch Brick Tower** (ACTIVE) — Live CKB Epoch constructed block-by-block from interlocking 3D LEGO-style bricks.
+- [x] **Shark Raft (`ToastmanAnim.glb`)** (ACTIVE) — Animated 3D Toastman riding a wooden ocean raft circled by 1 shark per CKB transaction (including cellbase).
 - [ ] **Fiber Network Star Map** (COMING SOON) — Real-time P2P lightning payment channel routing.
 - [ ] **Mempool Particle Collider** (COMING SOON) — High-energy unconfirmed transaction collisions.
 

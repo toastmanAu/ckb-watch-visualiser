@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>NERVOS CKB • Toastman Shark Raft Visualizer</title>
+<style>
+  :root {
+    --ocean-deep: #041322;
+    --glass-bg: rgba(7, 24, 42, 0.76);
+    --glass-border: rgba(56, 214, 255, 0.32);
+    --ckb-green: #00f59b;
+    --aqua-glow: #38d6ff;
+    --amber-warn: #ffb020;
+    --danger-red: #ff5252;
+    --text-bright: #f0f9ff;
+    --text-muted: #93b8d4;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: #06182c;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-bright);
+    touch-action: none;
+  }
+
+  #canvas-container {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    z-index: 1;
+  }
+
+  /* Loading Screen */
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: radial-gradient(circle at 50% 40%, #0d2b49 0%, #04101e 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    transition: opacity 0.45s ease;
+  }
+  .loading-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .spinner {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid rgba(56, 214, 255, 0.2);
+    border-top-color: var(--ckb-green);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .loading-title {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: var(--text-bright);
+  }
+  .loading-sub {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    max-width: 85vw;
+    text-align: center;
+  }
+
+  /* Top Bar */
+  .top-bar {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 12px));
+    left: max(14px, env(safe-area-inset-left, 14px));
+    right: max(14px, env(safe-area-inset-right, 14px));
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .status-pill {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    padding: 8px 14px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  .status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--amber-warn);
+    box-shadow: 0 0 8px var(--amber-warn);
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+  .status-dot.connected {
+    background: var(--ckb-green);
+    box-shadow: 0 0 10px var(--ckb-green);
+  }
+  .status-dot.event {
+    background: var(--aqua-glow);
+    box-shadow: 0 0 14px var(--aqua-glow);
+  }
+  .status-dot.error {
+    background: var(--danger-red);
+    box-shadow: 0 0 10px var(--danger-red);
+  }
+
+  .brand-col {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand-name {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .conn-state {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 9.5px;
+    color: var(--aqua-glow);
+    margin-top: 1px;
+  }
+
+  .top-Controls {
+    pointer-events: auto;
+    display: flex;
+    gap: 8px;
+  }
+
+  .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    color: var(--text-bright);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    transition: transform 0.15s ease, border-color 0.2s ease;
+  }
+  .icon-btn:active {
+    transform: scale(0.92);
+  }
+  .icon-btn svg {
+    width: 19px;
+    height: 19px;
+    fill: currentColor;
+  }
+
+  /* Compact Glass HUD at Bottom */
+  .hud-container {
+    position: fixed;
+    bottom: max(14px, env(safe-area-inset-bottom, 14px));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(92vw, 415px);
+    z-index: 10;
+    pointer-events: auto;
+  }
+
+  .hud-glass {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    padding: 12px 16px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.6);
+    transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.3s ease;
+  }
+  .hud-glass.new-block-pulse {
+    border-color: var(--ckb-green);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 24px rgba(0, 245, 155, 0.35);
+    transform: translateY(-2px);
+  }
+
+  .hud-row-main {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .hud-block-title {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+  }
+
+  .hud-tag {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .hud-block-num {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-bright);
+  }
+
+  .shark-badge {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 11.5px;
+    font-weight: 800;
+    color: var(--ckb-green);
+    background: rgba(0, 245, 155, 0.12);
+    border: 1px solid rgba(0, 245, 155, 0.35);
+    padding: 3px 10px;
+    border-radius: 999px;
+  }
+
+  .hud-tx-line {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px;
+    color: var(--aqua-glow);
+    margin-bottom: 6px;
+  }
+
+  .hud-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 9.5px;
+    color: var(--text-muted);
+    gap: 8px;
+  }
+
+  .rpc-chip {
+    color: var(--text-bright);
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 2px 7px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 185px;
+  }
+
+  .error-banner {
+    display: none;
+    margin-top: 6px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    background: rgba(255, 82, 82, 0.16);
+    border: 1px solid rgba(255, 82, 82, 0.45);
+    color: #ffb4b4;
+    font-family: ui-monospace, monospace;
+    font-size: 9.5px;
+  }
+  .error-banner.visible {
+    display: block;
+  }
+
+  /* Settings Modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(3, 10, 20, 0.78);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .modal-card {
+    width: min(94vw, 410px);
+    background: #091e36;
+    border: 1px solid var(--glass-border);
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
+  }
+
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .modal-title {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    color: var(--aqua-glow);
+    text-transform: uppercase;
+  }
+
+  .close-btn {
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: var(--text-bright);
+    cursor: pointer;
+  }
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: #04101e;
+    color: var(--text-bright);
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 12px;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .action-btn {
+    flex: 1;
+    min-height: 44px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: #102a49;
+    color: var(--text-bright);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 0 10px;
+  }
+  .action-btn.primary {
+    background: linear-gradient(135deg, #00f59b, #00b8ff);
+    color: #03131a;
+    border: none;
+  }
+  .action-btn.demo {
+    background: rgba(56, 214, 255, 0.14);
+    border-color: var(--aqua-glow);
+    color: var(--aqua-glow);
+  }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<!-- Loading Screen -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner" id="loading-spinner"></div>
+  <div class="loading-title" id="loading-title">LOADING TOASTMAN &amp; OCEAN…</div>
+  <div class="loading-sub" id="loading-sub">Preparing ToastmanAnim.glb (`Action` clip) &amp; CKB Shark Arena</div>
+</div>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <div class="status-pill">
+    <div class="status-dot" id="status-dot"></div>
+    <div class="brand-col">
+      <div class="brand-name">NERVOS CKB • SHARK RAFT</div>
+      <div class="conn-state" id="conn-state">Connecting…</div>
+    </div>
+  </div>
+
+  <div class="top-Controls">
+    <button class="icon-btn" id="btn-reset-cam" aria-label="Reset Arena Camera" title="Reset Camera">
+      <svg viewBox="0 0 24 24">
+        <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btn-settings" aria-label="RPC Endpoint Settings" title="RPC Settings">
+      <svg viewBox="0 0 24 24">
+        <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- Compact Glass HUD -->
+<div class="hud-container">
+  <div class="hud-glass" id="hud-glass">
+    <div class="hud-row-main">
+      <div class="hud-block-title">
+        <span class="hud-tag">Block</span>
+        <span class="hud-block-num" id="hud-block-num">#—</span>
+      </div>
+      <div class="shark-badge" id="hud-shark-badge">🦈 — SHARKS</div>
+    </div>
+
+    <div class="hud-tx-line" id="hud-tx-line">Transactions: — · includes cellbase</div>
+
+    <div class="hud-footer-row">
+      <span id="hud-hash">Hash: —</span>
+      <span class="rpc-chip" id="hud-rpc-chip" title="Tap to configure CKB RPC endpoint">RPC: mainnet.ckb.dev</span>
+    </div>
+
+    <div class="error-banner" id="hud-error-banner"></div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-backdrop" id="modal-settings">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="modal-title">CKB NODE &amp; SHARK CONTROLS</div>
+      <button class="close-btn" id="btn-close-settings">✕</button>
+    </div>
+
+    <div class="form-group">
+      <label for="input-rpc-url">CKB JSON-RPC Endpoint (Mainnet or LAN `http://192.168.x.x:8114`)</label>
+      <input class="form-input" id="input-rpc-url" type="url" placeholder="https://mainnet.ckb.dev/" />
+    </div>
+
+    <div class="btn-row">
+      <button class="action-btn demo" id="btn-test-sharks" type="button">🦈 PREVIEW 14-SHARK SURGE</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="action-btn" id="btn-default-rpc" type="button">PUBLIC MAINNET</button>
+      <button class="action-btn primary" id="btn-save-rpc" type="button">CONNECT NODE</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* ============================================================================
+ * 1. GERSTNER OCEAN WAVE MATH & CUSTOM WATER SHADER
+ * ============================================================================ */
+
+const OceanWaveMath = {
+  /**
+   * Evaluate layered Gerstner-style ocean elevation and surface normal at (x, z, time)
+   * so both the shader and the floating wooden raft share identical wave physics.
+   */
+  sampleHeightAndSlope(x, z, t) {
+    // 3 directional swell components
+    const p1 = x * 0.18 + z * 0.12 + t * 1.45;
+    const p2 = x * -0.14 + z * 0.22 + t * 1.85;
+    const p3 = x * 0.28 + z * -0.19 + t * 2.35;
+
+    const y = Math.sin(p1) * 0.24 + Math.sin(p2) * 0.16 + Math.cos(p3) * 0.09;
+
+    const dYdX = Math.cos(p1) * 0.18 * 0.24 +
+                 Math.cos(p2) * -0.14 * 0.16 -
+                 Math.sin(p3) * 0.28 * 0.09;
+
+    const dYdZ = Math.cos(p1) * 0.12 * 0.24 +
+                 Math.cos(p2) * 0.22 * 0.16 +
+                 Math.sin(p3) * 0.19 * 0.09;
+
+    return { y, pitch: dYdZ * 0.85, roll: -dYdX * 0.85 };
+  }
+};
+
+class OceanSystem {
+  constructor(scene) {
+    this.scene = scene;
+
+    this.uniforms = {
+      uTime: { value: 0 },
+      uPulseTime: { value: -10.0 },
+      uSunDir: { value: new THREE.Vector3(0.45, 0.72, -0.52).normalize() },
+      uDeepColor: { value: new THREE.Color(0x041a33) },
+      uShallowColor: { value: new THREE.Color(0x0b648f) },
+      uFoamColor: { value: new THREE.Color(0xdcf7ff) },
+      uPulseColor: { value: new THREE.Color(0x00f59b) }
+    };
+
+    const geo = new THREE.PlaneGeometry(180, 180, 140, 140);
+    geo.rotateX(-Math.PI / 2);
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.uniforms,
+      transparent: true,
+      depthWrite: false,
+      vertexShader: `
+        uniform float uTime;
+        varying vec3 vWorldPos;
+        varying vec3 vNormal;
+        varying float vWaveHeight;
+
+        void main() {
+          vec3 pos = position;
+          float p1 = pos.x * 0.18 + pos.z * 0.12 + uTime * 1.45;
+          float p2 = pos.x * -0.14 + pos.z * 0.22 + uTime * 1.85;
+          float p3 = pos.x * 0.28 - pos.z * 0.19 + uTime * 2.35;
+
+          // Gerstner horizontal trochoidal displacement
+          pos.x += cos(p1) * 0.12 - cos(p2) * 0.08;
+          pos.z += cos(p1) * 0.08 + cos(p2) * 0.11;
+          pos.y = sin(p1) * 0.24 + sin(p2) * 0.16 + cos(p3) * 0.09;
+
+          float dYdX = cos(p1) * 0.0432 - cos(p2) * 0.0224 - sin(p3) * 0.0252;
+          float dYdZ = cos(p1) * 0.0288 + cos(p2) * 0.0352 + sin(p3) * 0.0171;
+
+          vNormal = normalize(vec3(-dYdX, 1.0, -dYdZ));
+          vWaveHeight = pos.y;
+          vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
+          vWorldPos = worldPosition.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform float uPulseTime;
+        uniform vec3 uSunDir;
+        uniform vec3 uDeepColor;
+        uniform vec3 uShallowColor;
+        uniform vec3 uFoamColor;
+        uniform vec3 uPulseColor;
+
+        varying vec3 vWorldPos;
+        varying vec3 vNormal;
+        varying float vWaveHeight;
+
+        void main() {
+          vec3 V = normalize(cameraPosition - vWorldPos);
+          float dist = length(vWorldPos.xz);
+
+          // Micro-ripples on normal
+          float nRipple = sin(vWorldPos.x * 2.3 + uTime * 3.1) * cos(vWorldPos.z * 2.3 - uTime * 2.7) * 0.06;
+          vec3 N = normalize(vNormal + vec3(nRipple, 0.0, -nRipple));
+
+          // Fresnel reflectance
+          float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.2);
+
+          // Mix deep & turquoise shallow water near the raft arena
+          float arenaMix = smoothstep(26.0, 2.0, dist) * 0.68 + smoothstep(-0.25, 0.35, vWaveHeight) * 0.32;
+          vec3 waterCol = mix(uDeepColor, uShallowColor, arenaMix);
+
+          // Sky reflection tint
+          vec3 skyReflect = vec3(0.35, 0.72, 0.96);
+          waterCol = mix(waterCol, skyReflect, fresnel * 0.52);
+
+          // Sun specular highlight
+          vec3 H = normalize(uSunDir + V);
+          float spec = pow(max(dot(N, H), 0.0), 96.0);
+          waterCol += vec3(1.0, 0.96, 0.85) * spec * 1.35;
+
+          // Foam ring around the raft (radius ~2.3m) and wave crests
+          float raftEdge = abs(dist - 2.35 + sin(uTime * 2.5 + atan(vWorldPos.z, vWorldPos.x) * 5.0) * 0.16);
+          float raftFoam = smoothstep(0.32, 0.04, raftEdge) * 0.65;
+          float crestFoam = smoothstep(0.28, 0.44, vWaveHeight) * 0.38;
+          waterCol = mix(waterCol, uFoamColor, clamp(raftFoam + crestFoam, 0.0, 1.0));
+
+          // Expanding bioluminescent block-arrival wave ring
+          if (uPulseTime >= 0.0 && uPulseTime < 4.0) {
+            float pulseRadius = uPulseTime * 7.5;
+            float ring = smoothstep(1.2, 0.0, abs(dist - pulseRadius)) * (1.0 - uPulseTime / 4.0);
+            waterCol += uPulseColor * ring * 0.85;
+          }
+
+          // Semi-transparent near the arena so underwater sharks remain readable!
+          float alpha = mix(0.68, 0.93, smoothstep(6.0, 38.0, dist));
+          gl_FragColor = vec4(waterCol, alpha);
+        }
+      `
+    });
+
+    this.mesh = new THREE.Mesh(geo, mat);
+    this.mesh.renderOrder = 2;
+    this.scene.add(this.mesh);
+
+    // Deep seabed plane underneath so underwater sharks have crisp contrast
+    const seabedGeo = new THREE.PlaneGeometry(200, 200);
+    seabedGeo.rotateX(-Math.PI / 2);
+    const seabedMat = new THREE.MeshBasicMaterial({ color: 0x020d1a });
+    const seabed = new THREE.Mesh(seabedGeo, seabedMat);
+    seabed.position.y = -6.0;
+    this.scene.add(seabed);
+  }
+
+  triggerBlockWavePulse() {
+    this.uniforms.uPulseTime.value = 0.0;
+  }
+
+  update(dt, elapsed) {
+    this.uniforms.uTime.value = elapsed;
+    if (this.uniforms.uPulseTime.value >= 0.0) {
+      this.uniforms.uPulseTime.value += dt;
+      if (this.uniforms.uPulseTime.value > 4.2) {
+        this.uniforms.uPulseTime.value = -10.0;
+      }
+    }
+  }
+}
+
+/* ============================================================================
+ * 2. CONVINCING WOODEN RAFT & TOASTMAN GLB LOADER (`Action` Clip)
+ * ============================================================================ */
+
+class RaftAndToastman {
+  constructor(scene) {
+    this.scene = scene;
+    this.root = new THREE.Group();
+    this.scene.add(this.root);
+
+    this.mixer = null;
+    this._buildWoodenRaft();
+  }
+
+  _buildWoodenRaft() {
+    const logColors = [0x6e4726, 0x5c3a1e, 0x7a502c, 0x633f21];
+    const ropeMat = new THREE.MeshStandardMaterial({
+      color: 0xc8a974,
+      roughness: 0.85,
+      metalness: 0.05
+    });
+    const plankMat = new THREE.MeshStandardMaterial({
+      color: 0x825632,
+      roughness: 0.72,
+      metalness: 0.05
+    });
+
+    // 7 main longitudinal buoyancy logs with subtle organic variation
+    const numLogs = 7;
+    const spacing = 0.52;
+    for (let i = 0; i < numLogs; i++) {
+      const xOffset = (i - (numLogs - 1) / 2) * spacing;
+      const radius = 0.25 + (i % 2) * 0.025;
+      const length = 3.85 + Math.sin(i * 1.7) * 0.22;
+
+      const logGeo = new THREE.CylinderGeometry(radius * 0.94, radius, length, 14);
+      logGeo.rotateX(Math.PI / 2);
+
+      const logMat = new THREE.MeshStandardMaterial({
+        color: logColors[i % logColors.length],
+        roughness: 0.78,
+        metalness: 0.04
+      });
+
+      const logMesh = new THREE.Mesh(logGeo, logMat);
+      logMesh.position.set(xOffset, 0.04, (i % 3 - 1) * 0.06);
+      logMesh.rotation.z = (i - 3) * 0.02;
+      logMesh.castShadow = true;
+      logMesh.receiveShadow = true;
+      this.root.add(logMesh);
+
+      // Forward & aft rope lashings around each log
+      for (const zBand of [-1.35, 1.35]) {
+        const lashing = new THREE.Mesh(
+          new THREE.TorusGeometry(radius + 0.02, 0.038, 8, 18),
+          ropeMat
+        );
+        lashing.position.set(xOffset, 0.04, zBand);
+        this.root.add(lashing);
+      }
+    }
+
+    // Two transverse cross-beams lashed across the logs
+    const beamGeo = new THREE.CylinderGeometry(0.11, 0.11, 3.65, 12);
+    beamGeo.rotateZ(Math.PI / 2);
+    for (const zBeam of [-1.35, 1.35]) {
+      const beam = new THREE.Mesh(beamGeo, plankMat);
+      beam.position.set(0, 0.28, zBeam);
+      beam.castShadow = true;
+      this.root.add(beam);
+    }
+
+    // Central deck planks where Toastman stands
+    const deckPlankGeo = new THREE.BoxGeometry(2.55, 0.07, 0.36);
+    for (let p = -3; p <= 3; p++) {
+      const plank = new THREE.Mesh(deckPlankGeo, plankMat);
+      plank.position.set(0, 0.31, p * 0.40);
+      plank.rotation.y = (p % 2 === 0 ? 1 : -1) * 0.012;
+      plank.castShadow = true;
+      plank.receiveShadow = true;
+      this.root.add(plank);
+    }
+
+    // Small cornerwooden Supply Crate & Warm Lantern Post on the raft corner
+    const crate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.48, 0.42, 0.48),
+      plankMat
+    );
+    crate.position.set(-0.92, 0.55, -0.88);
+    crate.rotation.y = 0.28;
+    crate.castShadow = true;
+    this.root.add(crate);
+
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.055, 1.85, 10),
+      plankMat
+    );
+    pole.position.set(1.05, 1.15, -0.95);
+    pole.rotation.z = -0.06;
+    pole.castShadow = true;
+    this.root.add(pole);
+
+    const lanternMat = new THREE.MeshBasicMaterial({ color: 0xffdf7a });
+    const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), lanternMat);
+    lantern.position.set(1.11, 2.02, -0.95);
+    this.root.add(lantern);
+
+    const lanternLight = new THREE.PointLight(0xffd27a, 1.8, 7.5);
+    lanternLight.position.copy(lantern.position);
+    this.root.add(lanternLight);
+  }
+
+  /**
+   * Load `./ToastmanAnim.glb`, compute its exact Box3 bounds, scale & orient it on the raft,
+   * and continuously play the embedded `Action` animation clip.
+   */
+  loadToastmanGlb(url = './ToastmanAnim.glb') {
+    return new Promise((resolve, reject) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        url,
+        (gltf) => {
+          const model = gltf.scene;
+
+          // Ensure all meshes cast/receive shadows and materials are bright and double-sided
+          model.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              if (child.material) {
+                const oldMat = child.material;
+                const tex = oldMat.map || null;
+                if (tex) {
+                  tex.colorSpace = THREE.SRGBColorSpace;
+                }
+                child.material = new THREE.MeshStandardMaterial({
+                  map: tex,
+                  color: 0xffffff,
+                  roughness: 0.42,
+                  metalness: 0.05,
+                  emissive: 0xffffff,
+                  emissiveMap: tex,
+                  emissiveIntensity: 0.22,
+                  side: THREE.DoubleSide
+                });
+              }
+            }
+          });
+
+          // Inspect actual bounding box via THREE.Box3
+          model.updateMatrixWorld(true);
+          const box = new THREE.Box3().setFromObject(model);
+          const size = new THREE.Vector3();
+          const center = new THREE.Vector3();
+          box.getSize(size);
+          box.getCenter(center);
+
+          // In ToastmanAnim.glb, X is thickness (~0.27), Y is height (~1.0), Z is width (~1.0).
+          // If Z > X * 1.8, rotate -PI/2 around Y so Toastman's front faces +Z toward the camera!
+          const wrapper = new THREE.Group();
+          if (size.z > size.x * 1.6) {
+            model.rotation.y = -Math.PI / 2;
+          }
+
+          // Normalize character height to ~2.45 world units on the raft deck
+          const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+          const targetHeight = 2.45;
+          const scaleFactor = targetHeight / maxDim;
+          wrapper.scale.setScalar(scaleFactor);
+
+          // Position feet cleanly on the raft deck (y = 0.35)
+          const minY = box.min.y * scaleFactor;
+          wrapper.position.set(0, 0.35 - minY, 0.1);
+          wrapper.add(model);
+          this.root.add(wrapper);
+
+          // Locate BoneBottom to keep horizontal root motion bounded on the raft deck
+          this.boneBottom = model.getObjectByName('BoneBottom');
+
+          // Locate and play the embedded `Action` animation clip
+          if (gltf.animations && gltf.animations.length > 0) {
+            this.mixer = new THREE.AnimationMixer(model);
+            const actionClip = THREE.AnimationClip.findByName(gltf.animations, 'Action') || gltf.animations[0];
+            const clipAction = this.mixer.clipAction(actionClip);
+            clipAction.setLoop(THREE.LoopRepeat, Infinity);
+            clipAction.play();
+          }
+
+          resolve(gltf);
+        },
+        undefined,
+        (err) => reject(err)
+      );
+    });
+  }
+
+  update(dt, elapsed) {
+    if (this.mixer) {
+      this.mixer.update(dt);
+      if (this.boneBottom) {
+        this.boneBottom.position.x *= 0.34;
+        this.boneBottom.position.z *= 0.34;
+      }
+    }
+
+    // Buoyancy motion matched to ocean waves at (0, 0)
+    const wave = OceanWaveMath.sampleHeightAndSlope(0, 0, elapsed);
+    this.root.position.y = wave.y - 0.04;
+    this.root.rotation.x = wave.pitch;
+    this.root.rotation.z = wave.roll;
+  }
+}
+
+/* ============================================================================
+ * 3. PROCEDURAL 3D SHARK SYSTEM (1 Shark = 1 CKB Transaction incl. Cellbase)
+ * ============================================================================ */
+
+class SharkManager {
+  constructor(scene) {
+    this.scene = scene;
+    this.activeSharks = [];
+    this.retiringSharks = [];
+    this.sharedGeometry = this._buildProceduralSharkGeometry();
+    this.sharedMaterial = this._buildSharkShaderMaterial();
+  }
+
+  /**
+   * Build a recognizable, streamlined 3D shark mesh from merged Three.js primitives:
+   * - Tapered torpedo body along Z (-Z = nose, +Z = tail)
+   * - Tall curved dorsal fin breaking the surface
+   * - Swept pectoral side fins
+   * - Crescent dual-lobe caudal tail fin
+   */
+  _buildProceduralSharkGeometry() {
+    const parts = [];
+
+    // 1. Forward Snout Cone (pointing toward +Z)
+    const snout = new THREE.ConeGeometry(0.28, 0.95, 14);
+    snout.scale(0.88, 0.72, 1.0);
+    snout.rotateX(Math.PI / 2);
+    snout.translate(0, 0, 0.82);
+    parts.push(snout);
+
+    // 2. Mid Torso Fuselage
+    const midBody = new THREE.CylinderGeometry(0.28, 0.24, 0.95, 14);
+    midBody.scale(0.88, 0.72, 1.0);
+    midBody.rotateX(Math.PI / 2);
+    midBody.translate(0, 0, -0.12);
+    parts.push(midBody);
+
+    // 3. Rear Tail Peduncle Cone (tapering toward -Z)
+    const rearBody = new THREE.ConeGeometry(0.24, 1.15, 14);
+    rearBody.scale(0.82, 0.68, 1.0);
+    rearBody.rotateX(-Math.PI / 2);
+    rearBody.translate(0, 0, -1.15);
+    parts.push(rearBody);
+
+    // 4. Iconic Tall Dorsal Fin (slices above the water surface)
+    const dorsalShape = new THREE.Shape();
+    dorsalShape.moveTo(0, 0);
+    dorsalShape.lineTo(0.32, 0);
+    dorsalShape.quadraticCurveTo(0.18, 0.42, -0.18, 0.68);
+    dorsalShape.quadraticCurveTo(-0.08, 0.28, -0.22, 0);
+    dorsalShape.closePath();
+
+    const dorsalGeo = new THREE.ExtrudeGeometry(dorsalShape, {
+      depth: 0.04,
+      bevelEnabled: true,
+      bevelThickness: 0.015,
+      bevelSize: 0.015,
+      bevelSegments: 2
+    });
+    dorsalGeo.center();
+    dorsalGeo.rotateY(Math.PI / 2);
+    dorsalGeo.translate(0, 0.42, 0.02);
+    parts.push(dorsalGeo);
+
+    // 5. Left & Right Swept Pectoral Fins
+    const pecGeo = new THREE.ConeGeometry(0.18, 0.68, 4);
+    pecGeo.scale(0.22, 1.0, 1.35);
+
+    const leftPec = pecGeo.clone();
+    leftPec.rotateZ(-Math.PI * 0.42);
+    leftPec.rotateY(-0.28);
+    leftPec.translate(0.42, -0.10, 0.18);
+    parts.push(leftPec);
+
+    const rightPec = pecGeo.clone();
+    rightPec.rotateZ(Math.PI * 0.42);
+    rightPec.rotateY(0.28);
+    rightPec.translate(-0.42, -0.10, 0.18);
+    parts.push(rightPec);
+
+    // 6. Crescent Caudal Tail Fin (Upper & Lower Lobes)
+    const upperTail = new THREE.ConeGeometry(0.14, 0.65, 4);
+    upperTail.scale(0.22, 1.0, 1.2);
+    upperTail.rotateX(-0.52);
+    upperTail.translate(0, 0.22, -1.78);
+    parts.push(upperTail);
+
+    const lowerTail = new THREE.ConeGeometry(0.11, 0.42, 4);
+    lowerTail.scale(0.22, 1.0, 1.1);
+    lowerTail.rotateX(-2.55);
+    lowerTail.translate(0, -0.14, -1.72);
+    parts.push(lowerTail);
+
+    const merged = BufferGeometryUtils.mergeGeometries(parts, false);
+    merged.computeVertexNormals();
+    return merged;
+  }
+
+  /**
+   * Custom ShaderMaterial with GPU vertex S-wave swimming undulation so every shark
+   * wags its tail and flexes its body smoothly at zero CPU cost.
+   */
+  _buildSharkShaderMaterial() {
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x3b5368,
+      roughness: 0.35,
+      metalness: 0.18,
+      emissive: 0x092236,
+      emissiveIntensity: 0.35
+    });
+
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uSwimTime = { value: 0 };
+      mat.userData.shader = shader;
+
+      shader.vertexShader = `
+        uniform float uSwimTime;
+      ` + shader.vertexShader;
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `
+        #include <begin_vertex>
+        // Lateral S-wave swimming undulation stronger toward the tail (-Z)
+        float tailFactor = smoothstep(0.6, -1.85, position.z);
+        float phase = float(gl_InstanceID) * 1.73 + uSwimTime * 6.8;
+        transformed.x += sin(phase + position.z * 2.4) * 0.22 * tailFactor;
+        `
+      );
+    };
+
+    return mat;
+  }
+
+  /**
+   * Replace the previous block's sharks with the exact transaction count of the new block
+   * (`txCount = block.transactions.length`, including cellbase).
+   */
+  setSharkPopulation(txCount) {
+    const count = Math.max(1, Number(txCount) || 1);
+
+    // Move existing sharks into retiring dive list
+    for (const s of this.activeSharks) {
+      s.retireProgress = 0;
+      this.retiringSharks.push(s);
+    }
+    this.activeSharks = [];
+
+    // Create new shark cohort with varied orbits, speeds, depths, and phases
+    for (let i = 0; i < count; i++) {
+      const ringBand = i % 4;
+      const baseRadius = 5.2 + ringBand * 2.1 + (Math.random() - 0.5) * 1.1 + Math.floor(i / 16) * 0.85;
+      const direction = (i % 5 === 0) ? -1 : 1; // Most circle counter-clockwise, some prowl clockwise
+      const angularSpeed = (0.36 + (Math.random() * 0.22)) * (6.2 / Math.sqrt(baseRadius)) * direction;
+      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
+      const scale = 0.88 + (i % 3) * 0.11;
+
+      const mesh = new THREE.Mesh(this.sharedGeometry, this.sharedMaterial);
+      mesh.castShadow = true;
+
+      // Wake foam ring where dorsal fin slices the surface
+      const wakeGeo = new THREE.RingGeometry(0.18, 0.44, 16);
+      wakeGeo.rotateX(-Math.PI / 2);
+      const wakeMat = new THREE.MeshBasicMaterial({
+        color: 0xd8f8ff,
+        transparent: true,
+        opacity: 0.42,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const wakeMesh = new THREE.Mesh(wakeGeo, wakeMat);
+      this.scene.add(mesh);
+      this.scene.add(wakeMesh);
+
+      this.activeSharks.push({
+        mesh,
+        wakeMesh,
+        angle,
+        baseRadius,
+        angularSpeed,
+        direction,
+        scale,
+        phaseOffset: Math.random() * Math.PI * 2,
+        depthOffset: -0.22 - (i % 3) * 0.08,
+        emergeProgress: 0
+      });
+    }
+  }
+
+  update(dt, elapsed) {
+    if (this.sharedMaterial.userData.shader) {
+      this.sharedMaterial.userData.shader.uniforms.uSwimTime.value = elapsed;
+    }
+
+    // 1. Update Active Circling Sharks
+    for (let i = 0; i < this.activeSharks.length; i++) {
+      const s = this.activeSharks[i];
+      s.emergeProgress = Math.min(1.0, s.emergeProgress + dt * 0.95);
+      s.angle += s.angularSpeed * dt;
+
+      // Occasional closer prowl pass toward the raft
+      const prowlOffset = Math.sin(elapsed * 0.65 + s.phaseOffset) * 0.85;
+      const r = Math.max(4.1, s.baseRadius + prowlOffset);
+
+      const x = Math.cos(s.angle) * r;
+      const z = Math.sin(s.angle) * r;
+
+      const wave = OceanWaveMath.sampleHeightAndSlope(x, z, elapsed);
+      const emergeDepth = (1.0 - s.emergeProgress) * -2.8;
+      const y = wave.y + s.depthOffset + emergeDepth;
+
+      s.mesh.position.set(x, y, z);
+
+      // Compute tangent direction so the shark's nose (+Z) points along its circular path
+      const nextAngle = s.angle + s.direction * 0.05;
+      const tx = Math.cos(nextAngle) * r;
+      const tz = Math.sin(nextAngle) * r;
+      s.mesh.lookAt(tx, y + Math.sin(elapsed * 2.2 + s.phaseOffset) * 0.04, tz);
+
+      // Bank inward into the turn and sway tail
+      const swimWiggle = Math.sin(elapsed * 6.5 + s.phaseOffset + i) * 0.065;
+      s.mesh.rotateY(swimWiggle);
+      s.mesh.rotateZ(s.direction * -0.16);
+      s.mesh.scale.setScalar(s.scale);
+
+      // Update surface wake ring around the dorsal fin
+      s.wakeMesh.position.set(x, wave.y + 0.03, z);
+      const wakeScale = (0.85 + Math.sin(elapsed * 5.0 + s.phaseOffset) * 0.22) * s.emergeProgress;
+      s.wakeMesh.scale.setScalar(Math.max(0.01, wakeScale));
+    }
+
+    // 2. Update Retiring Previous-Block Sharks (dive smoothly into the deep & cleanup)
+    for (let i = this.retiringSharks.length - 1; i >= 0; i--) {
+      const r = this.retiringSharks[i];
+      r.retireProgress += dt * 0.85;
+      r.angle += r.angularSpeed * dt;
+
+      const x = Math.cos(r.angle) * (r.baseRadius + r.retireProgress * 2.2);
+      const z = Math.sin(r.angle) * (r.baseRadius + r.retireProgress * 2.2);
+      const y = -0.35 - r.retireProgress * 3.8;
+
+      r.mesh.position.set(x, y, z);
+      r.mesh.rotation.x = 0.35;
+      r.mesh.scale.setScalar(Math.max(0.01, r.scale * (1.0 - r.retireProgress)));
+      r.wakeMesh.visible = false;
+
+      if (r.retireProgress >= 1.0) {
+        this.scene.remove(r.mesh);
+        this.scene.remove(r.wakeMesh);
+        r.wakeMesh.geometry.dispose();
+        r.wakeMesh.material.dispose();
+        this.retiringSharks.splice(i, 1);
+      }
+    }
+  }
+}
+
+/* ============================================================================
+ * 4. CKB LIVE BLOCKCHAIN RPC POLLING CLIENT
+ * ============================================================================ */
+
+class CkbNodeClient {
+  constructor({ onBaselineBlock, onNewBlock, onStatus, onError }) {
+    this.defaultRpc = 'https://mainnet.ckb.dev/';
+    this.backupRpc = 'https://mainnet.ckbapp.dev/';
+    this.rpcUrl = localStorage.getItem('ckb_sharks_rpc_url') || this.defaultRpc;
+
+    this.onBaselineBlock = onBaselineBlock;
+    this.onNewBlock = onNewBlock;
+    this.onStatus = onStatus;
+    this.onError = onError;
+
+    this.lastBlockNumber = null; // BigInt
+    this.lastBlockHash = null;
+    this.isPolling = false;
+    this.pollTimer = null;
+  }
+
+  start() {
+    this.stop();
+    this.onStatus('Connecting', 'Connecting…');
+    this.onError('');
+    this._pollOnce();
+    this.pollTimer = setInterval(() => this._pollOnce(), 1500);
+  }
+
+  stop() {
+    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.pollTimer = null;
+  }
+
+  setEndpoint(newUrl) {
+    this.rpcUrl = (newUrl || this.defaultRpc).trim();
+    localStorage.setItem('ckb_sharks_rpc_url', this.rpcUrl);
+    this.lastBlockNumber = null;
+    this.lastBlockHash = null;
+    this.start();
+  }
+
+  resetDefault() {
+    localStorage.removeItem('ckb_sharks_rpc_url');
+    this.rpcUrl = this.defaultRpc;
+    this.lastBlockNumber = null;
+    this.lastBlockHash = null;
+    this.start();
+  }
+
+  async _rpcCall(method, params = []) {
+    const urls = [this.rpcUrl];
+    if (this.rpcUrl === this.defaultRpc) {
+      urls.push(this.backupRpc);
+    }
+
+    let lastErr = null;
+    for (const url of urls) {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 5000);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: Date.now(),
+            jsonrpc: '2.0',
+            method,
+            params
+          }),
+          signal: ctrl.signal
+        });
+        clearTimeout(timeout);
+        if (!res.ok) {
+          lastErr = new Error(`HTTP ${res.status} from ${url}`);
+          continue;
+        }
+        const json = await res.json();
+        if (json.error) {
+          lastErr = new Error(json.error.message || 'JSON-RPC error');
+          continue;
+        }
+        if (json.result !== undefined) {
+          return json.result;
+        }
+      } catch (err) {
+        clearTimeout(timeout);
+        lastErr = err;
+      }
+    }
+    throw lastErr || new Error('RPC connection failed');
+  }
+
+  async _pollOnce() {
+    if (this.isPolling) return;
+    this.isPolling = true;
+
+    try {
+      const tipHeader = await this._rpcCall('get_tip_header', []);
+      if (!tipHeader || !tipHeader.hash || !tipHeader.number) {
+        this.isPolling = false;
+        return;
+      }
+
+      this.onError('');
+      const tipHeight = BigInt(tipHeader.number);
+
+      // 1. Initial connection -> establish baseline without triggering a false "New block" event
+      if (this.lastBlockNumber === null) {
+        const fullBlock = await this._rpcCall('get_block', [tipHeader.hash]);
+        const blockRecord = this._parseBlock(fullBlock || { header: tipHeader, transactions: [{}] });
+        this.lastBlockNumber = tipHeight;
+        this.lastBlockHash = tipHeader.hash;
+        this.onStatus('Connected', 'Waiting for block…');
+        this.onBaselineBlock(blockRecord);
+        this.isPolling = false;
+        return;
+      }
+
+      // 2. Unchanged tip -> continue waiting
+      if (tipHeader.hash === this.lastBlockHash || tipHeight <= this.lastBlockNumber) {
+        this.onStatus('Waiting', 'Waiting for block…');
+        this.isPolling = false;
+        return;
+      }
+
+      // 3. Process missed intermediate heights (up to 4) + latest height sequentially
+      const startHeight = tipHeight - this.lastBlockNumber > 4n
+        ? tipHeight - 3n
+        : this.lastBlockNumber + 1n;
+
+      for (let h = startHeight; h <= tipHeight; h++) {
+        const hexHeight = '0x' + h.toString(16);
+        const block = await this._rpcCall('get_block_by_number', [hexHeight]);
+        if (block && block.header) {
+          const record = this._parseBlock(block);
+          this.lastBlockNumber = h;
+          this.lastBlockHash = block.header.hash;
+          this.onStatus('NewBlock', `New block #${record.numberFormatted}`);
+          this.onNewBlock(record);
+        }
+      }
+    } catch (err) {
+      const isHttpsToHttp = window.location.protocol === 'https:' && this.rpcUrl.startsWith('http://');
+      const msg = isHttpsToHttp
+        ? 'Blocked by HTTPS mixed-content rule (use HTTP page or HTTPS/WSS proxy for LAN RPC)'
+        : `RPC Error (${this.rpcUrl}): check CORS / node reachability`;
+      this.onStatus('Error', 'RPC error / disconnected');
+      this.onError(msg);
+    } finally {
+      this.isPolling = false;
+    }
+  }
+
+  _parseBlock(block) {
+    const hdr = block.header || block;
+    const txs = Array.isArray(block.transactions) ? block.transactions : [{}];
+    const numBig = BigInt(hdr.number || '0x0');
+    const numFormatted = numBig.toString(10).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+    return {
+      numberBig: numBig,
+      numberFormatted: numFormatted,
+      hash: hdr.hash || '0x0',
+      // Exact transaction count including cellbase transaction
+      txCount: txs.length
+    };
+  }
+}
+
+/* ============================================================================
+ * 5. MAIN OCEAN ARENA CONTROLLER
+ * ============================================================================ */
+
+class SharkRaftApp {
+  constructor() {
+    this.container = document.getElementById('canvas-container');
+    this._initScene();
+    this._initSkyAndLighting();
+    this._initBubbles();
+
+    this.ocean = new OceanSystem(this.scene);
+    this.raftAndToastman = new RaftAndToastman(this.scene);
+    this.sharks = new SharkManager(this.scene);
+
+    this.nodeClient = new CkbNodeClient({
+      onBaselineBlock: (block) => this._applyBlockState(block, false),
+      onNewBlock: (block) => this._applyBlockState(block, true),
+      onStatus: (code, text) => this._updateStatusUI(code, text),
+      onError: (errMsg) => this._updateErrorBanner(errMsg)
+    });
+
+    this._bindUIEvents();
+    this._bootstrap();
+  }
+
+  async _bootstrap() {
+    const overlay = document.getElementById('loading-overlay');
+    const titleEl = document.getElementById('loading-title');
+    const subEl = document.getElementById('loading-sub');
+
+    try {
+      await this.raftAndToastman.loadToastmanGlb('./ToastmanAnim.glb');
+      overlay.classList.add('hidden');
+    } catch (err) {
+      titleEl.textContent = 'FAILED TO LOAD ToastmanAnim.glb';
+      subEl.textContent = String(err && err.message ? err.message : err);
+      document.getElementById('loading-spinner').style.display = 'none';
+      // Still allow scene & CKB network to run after brief notice
+      setTimeout(() => overlay.classList.add('hidden'), 2600);
+    }
+
+    // Start live CKB RPC polling only after scene and GLB load step completes
+    this.nodeClient.start();
+
+    this.clock = new THREE.Clock();
+    this._animate = this._animate.bind(this);
+    requestAnimationFrame(this._animate);
+  }
+
+  _initScene() {
+    this.scene = new THREE.Scene();
+    this.scene.fog = new THREE.FogExp2(0x0a2540, 0.014);
+
+    this.camera = new THREE.PerspectiveCamera(
+      46,
+      window.innerWidth / Math.max(1, window.innerHeight),
+      0.1,
+      220
+    );
+
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.22;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.container.appendChild(this.renderer.domElement);
+
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.target.set(0, 0.9, 0);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.055;
+    this.controls.minDistance = 8.5;
+    this.controls.maxDistance = 44.0;
+    this.controls.minPolarAngle = 0.16;
+    this.controls.maxPolarAngle = Math.PI * 0.45; // Never go underwater
+
+    this._frameArenaCamera();
+
+    window.addEventListener('resize', () => this._onResize());
+    window.addEventListener('orientationchange', () => setTimeout(() => this._onResize(), 150));
+  }
+
+  /**
+   * Frame the entire ocean arena (raft + Toastman + full shark-circling orbit radius)
+   * comfortably on both portrait mobile phones and desktop screens.
+   */
+  _frameArenaCamera() {
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    if (aspect < 0.78) {
+      // Portrait mobile: pull camera back so outer shark orbits (radius ~11m) stay inside screen width
+      this.camera.position.set(0, 14.5, 27.5);
+    } else {
+      this.camera.position.set(0, 11.5, 21.0);
+    }
+    this.controls.target.set(0, 0.9, 0);
+    this.controls.update();
+  }
+
+  _initSkyAndLighting() {
+    // Atmospheric Sky Dome with Horizon Glow & Sun Disc
+    const skyGeo = new THREE.SphereGeometry(110, 32, 24);
+    const skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {
+        uTopColor: { value: new THREE.Color(0x05162b) },
+        uHorizonColor: { value: new THREE.Color(0x16527c) },
+        uSunColor: { value: new THREE.Color(0xffe7b3) },
+        uSunDir: { value: new THREE.Vector3(0.45, 0.35, -0.82).normalize() }
+      },
+      vertexShader: `
+        varying vec3 vWorldDir;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldDir = normalize(wp.xyz);
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uTopColor;
+        uniform vec3 uHorizonColor;
+        uniform vec3 uSunColor;
+        uniform vec3 uSunDir;
+        varying vec3 vWorldDir;
+        void main() {
+          float h = clamp(vWorldDir.y, 0.0, 1.0);
+          vec3 col = mix(uHorizonColor, uTopColor, pow(h, 0.55));
+          float sunAmt = max(dot(vWorldDir, uSunDir), 0.0);
+          col += uSunColor * pow(sunAmt, 18.0) * 0.45;
+          col += uSunColor * smoothstep(0.996, 0.999, sunAmt) * 0.9;
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+    this.scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+    // Bright Hemisphere Fill + Key Sunlight + Front Fill Light so Toastman is unmistakably clear
+    const hemi = new THREE.HemisphereLight(0xd8f3ff, 0x1b3b56, 1.35);
+    this.scene.add(hemi);
+
+    const sunLight = new THREE.DirectionalLight(0xfff4dc, 2.6);
+    sunLight.position.set(12, 22, 14);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 1024;
+    sunLight.shadow.mapSize.height = 1024;
+    const d = 14;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    sunLight.shadow.bias = -0.001;
+    this.scene.add(sunLight);
+
+    const frontFill = new THREE.DirectionalLight(0xa5e8ff, 1.15);
+    frontFill.position.set(-8, 8, 18);
+    this.scene.add(frontFill);
+  }
+
+  _initBubbles() {
+    const count = 90;
+    this.bubblePositions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      this._respawnBubble(i);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(this.bubblePositions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xbaf2ff,
+      size: 0.16,
+      transparent: true,
+      opacity: 0.65,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    this.bubblesMesh = new THREE.Points(geo, mat);
+    this.scene.add(this.bubblesMesh);
+  }
+
+  _respawnBubble(idx) {
+    const angle = Math.random() * Math.PI * 2;
+    const r = 2.0 + Math.random() * 11.5;
+    this.bubblePositions[idx * 3] = Math.cos(angle) * r;
+    this.bubblePositions[idx * 3 + 1] = -3.5 + Math.random() * 3.2;
+    this.bubblePositions[idx * 3 + 2] = Math.sin(angle) * r;
+  }
+
+  _applyBlockState(block, isNewBlockEvent) {
+    // Update Shark Population (1 Shark = 1 Transaction including Cellbase)
+    this.sharks.setSharkPopulation(block.txCount);
+
+    document.getElementById('hud-block-num').textContent = `#${block.numberFormatted}`;
+    document.getElementById('hud-shark-badge').textContent =
+      `🦈 ${block.txCount} SHARK${block.txCount === 1 ? '' : 'S'}`;
+    document.getElementById('hud-tx-line').textContent =
+      `Transactions: ${block.txCount} · includes cellbase`;
+
+    const shortHash = block.hash.length > 16
+      ? `${block.hash.slice(0, 8)}…${block.hash.slice(-6)}`
+      : block.hash;
+    document.getElementById('hud-hash').textContent = `Hash: ${shortHash}`;
+
+    if (isNewBlockEvent) {
+      this.ocean.triggerBlockWavePulse();
+      const hudGlass = document.getElementById('hud-glass');
+      hudGlass.classList.add('new-block-pulse');
+      setTimeout(() => hudGlass.classList.remove('new-block-pulse'), 2400);
+    }
+  }
+
+  _updateStatusUI(code, text) {
+    const dot = document.getElementById('status-dot');
+    const label = document.getElementById('conn-state');
+    label.textContent = text;
+
+    dot.className = 'status-dot';
+    if (code === 'Connected' || code === 'Waiting') dot.classList.add('connected');
+    else if (code === 'NewBlock') dot.classList.add('event');
+    else if (code === 'Error') dot.classList.add('error');
+  }
+
+  _updateErrorBanner(msg) {
+    const banner = document.getElementById('hud-error-banner');
+    if (msg) {
+      banner.textContent = msg;
+      banner.classList.add('visible');
+    } else {
+      banner.classList.remove('visible');
+    }
+  }
+
+  _bindUIEvents() {
+    document.getElementById('btn-reset-cam').addEventListener('click', () => {
+      this._frameArenaCamera();
+    });
+
+    const modal = document.getElementById('modal-settings');
+    const inputRpc = document.getElementById('input-rpc-url');
+    const rpcChip = document.getElementById('hud-rpc-chip');
+
+    const openSettings = () => {
+      inputRpc.value = this.nodeClient.rpcUrl;
+      modal.classList.add('open');
+    };
+
+    document.getElementById('btn-settings').addEventListener('click', openSettings);
+    rpcChip.addEventListener('click', openSettings);
+
+    document.getElementById('btn-close-settings').addEventListener('click', () => {
+      modal.classList.remove('open');
+    });
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.remove('open');
+    });
+
+    document.getElementById('btn-save-rpc').addEventListener('click', () => {
+      this.nodeClient.setEndpoint(inputRpc.value);
+      try {
+        const u = new URL(this.nodeClient.rpcUrl);
+        rpcChip.textContent = `RPC: ${u.host}`;
+      } catch {
+        rpcChip.textContent = `RPC: ${this.nodeClient.rpcUrl}`;
+      }
+      modal.classList.remove('open');
+    });
+
+    document.getElementById('btn-default-rpc').addEventListener('click', () => {
+      this.nodeClient.resetDefault();
+      rpcChip.textContent = 'RPC: mainnet.ckb.dev';
+      modal.classList.remove('open');
+    });
+
+    document.getElementById('btn-test-sharks').addEventListener('click', () => {
+      modal.classList.remove('open');
+      const count = 8 + Math.floor(Math.random() * 14);
+      const nextNum = (this.nodeClient.lastBlockNumber || 20820600n) + 1n;
+      this._applyBlockState({
+        numberBig: nextNum,
+        numberFormatted: nextNum.toString(10).replace(/\B(?=(\d{3})+(?!\d))/g, ','),
+        hash: '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
+        txCount: count
+      }, true);
+    });
+  }
+
+  _onResize() {
+    this.camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  _animate() {
+    requestAnimationFrame(this._animate);
+    if (document.hidden) return;
+
+    const dt = Math.min(this.clock.getDelta(), 0.1);
+    const elapsed = this.clock.getElapsedTime();
+
+    this.ocean.update(dt, elapsed);
+    this.raftAndToastman.update(dt, elapsed);
+    this.sharks.update(dt, elapsed);
+
+    // Animate rising underwater bubbles
+    const posAttr = this.bubblesMesh.geometry.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      this.bubblePositions[i * 3 + 1] += dt * 0.85;
+      if (this.bubblePositions[i * 3 + 1] > 0.05) {
+        this._respawnBubble(i);
+      }
+    }
+    posAttr.needsUpdate = true;
+
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  new SharkRaftApp();
+});
+</script>
+</body>
+</html>

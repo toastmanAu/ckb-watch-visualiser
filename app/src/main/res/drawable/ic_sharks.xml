@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Curved Shark Dorsal Fin -->
+    <path
+        android:fillColor="#00D4FF"
+        android:pathData="M6,16 C7,10 11,5 17,4 C14.8,8.5 14.5,12.5 16.5,16 Z" />
+    <!-- Ocean Wave Crest 1 -->
+    <path
+        android:fillColor="#00F59B"
+        android:pathData="M2,17.5 Q5,15.5 8,17.5 T14,17.5 T20,17.5 L22,17.5 L22,19.5 L2,19.5 Z" />
+    <!-- Deep Wave Base -->
+    <path
+        android:fillColor="#0095D9"
+        android:pathData="M3,20.5 L21,20.5 L21,22 L3,22 Z" />
+</vector>

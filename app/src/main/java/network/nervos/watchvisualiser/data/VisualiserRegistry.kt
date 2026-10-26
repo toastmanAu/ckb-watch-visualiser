@@ -47,6 +47,15 @@ object VisualiserRegistry {
             isAvailable = true
         ),
         VisualiserInfo(
+            id = "ckb_sharks",
+            title = "Shark Raft",
+            subtitle = "Toastman riding an ocean raft circled by 1 shark per CKB transaction",
+            badge = "ACTIVE",
+            iconRes = R.drawable.ic_sharks,
+            assetPath = "file:///android_asset/visualisers/ckb-sharks/index.html",
+            isAvailable = true
+        ),
+        VisualiserInfo(
             id = "fiber_network",
             title = "Fiber Network",
             subtitle = "Lightning-fast P2P state channels & peer routing topologies",
