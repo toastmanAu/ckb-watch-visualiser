@@ -1,0 +1,2026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Nervos CKB Halving &amp; Live Epoch Water Visualizer</title>
+  <style>
+    :root {
+      --bg-deep: #030914;
+      --bg-card: rgba(6, 18, 34, 0.76);
+      --border-glass: rgba(72, 219, 251, 0.24);
+      --border-gold: rgba(255, 209, 102, 0.32);
+      --cyan: #38e4ff;
+      --emerald: #00f5a0;
+      --gold: #ffd166;
+      --amber: #ff9f43;
+      --danger: #ff5e7e;
+      --text-main: #eef7ff;
+      --text-dim: #8ab0cc;
+      --safe-top: env(safe-area-inset-top, 10px);
+      --safe-bottom: env(safe-area-inset-bottom, 12px);
+      --safe-left: env(safe-area-inset-left, 12px);
+      --safe-right: env(safe-area-inset-right, 12px);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 42%, #09203a 0%, #040d1a 65%, #02060d 100%);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+      touch-action: none;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+    }
+
+    /* Overlay HUD Layout - Non-obscuring mobile-first hierarchy */
+    #hud {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: calc(var(--safe-top) + 8px) calc(var(--safe-right) + 12px) calc(var(--safe-bottom) + 10px) calc(var(--safe-left) + 12px);
+    }
+
+    /* Upper Halving Forecast Header */
+    .top-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-width: 500px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .brand-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .title-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      border-radius: 999px;
+      padding: 5px 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+      box-shadow: 0 0 8px var(--amber);
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+    }
+    .status-dot.live {
+      background: var(--emerald);
+      box-shadow: 0 0 10px var(--emerald);
+    }
+    .status-dot.polling {
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan);
+    }
+    .status-dot.reconnecting {
+      background: var(--amber);
+      box-shadow: 0 0 10px var(--amber);
+    }
+    .status-dot.offline {
+      background: var(--danger);
+      box-shadow: 0 0 10px var(--danger);
+    }
+
+    .brand-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+
+    .status-badge {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.66rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(56, 228, 255, 0.12);
+      color: var(--text-main);
+    }
+
+    .actions-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      pointer-events: auto;
+    }
+
+    .icon-btn {
+      pointer-events: auto;
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      color: var(--text-main);
+      border-radius: 999px;
+      padding: 6px 11px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+    .icon-btn:active {
+      transform: scale(0.95);
+    }
+    .icon-btn:hover {
+      border-color: var(--cyan);
+    }
+
+    .halving-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-gold);
+      border-radius: 16px;
+      padding: 10px 14px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+    }
+
+    .halving-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .eyebrow {
+      font-size: 0.64rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .era-pill {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.65rem;
+      color: var(--emerald);
+      background: rgba(0, 245, 160, 0.1);
+      border: 1px solid rgba(0, 245, 160, 0.28);
+      padding: 1px 8px;
+      border-radius: 999px;
+    }
+
+    .eta-date-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-top: 3px;
+      flex-wrap: wrap;
+    }
+
+    .eta-local {
+      font-size: 1.02rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: var(--text-main);
+    }
+
+    .eta-utc {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.66rem;
+      color: var(--text-dim);
+    }
+
+    .countdown-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-top: 4px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .countdown-clock {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 1.18rem;
+      font-weight: 800;
+      color: var(--cyan);
+      text-shadow: 0 0 14px rgba(56, 228, 255, 0.35);
+    }
+
+    .target-epoch-label {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .halving-note {
+      margin-top: 5px;
+      font-size: 0.63rem;
+      color: var(--text-dim);
+      line-height: 1.3;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Center Floating Epoch Callout (Leaves center glass tank unobstructed) */
+    .vessel-callout {
+      align-self: center;
+      text-align: center;
+      margin-top: auto;
+      margin-bottom: 8px;
+      background: rgba(4, 14, 28, 0.66);
+      border: 1px solid rgba(56, 228, 255, 0.25);
+      border-radius: 999px;
+      padding: 5px 16px;
+      backdrop-filter: blur(8px);
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    .vessel-epoch-tag {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--cyan);
+      letter-spacing: 0.06em;
+    }
+
+    .vessel-pct-tag {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: var(--emerald);
+    }
+
+    /* Lower Epoch & Halving Cycle Strip */
+    .bottom-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      max-width: 500px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .epoch-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .metric-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      border-radius: 12px;
+      padding: 7px 8px;
+      backdrop-filter: blur(10px);
+      text-align: center;
+    }
+
+    .metric-label {
+      font-size: 0.56rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .metric-val {
+      margin-top: 2px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .cycle-strip {
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      border-radius: 12px;
+      padding: 7px 12px;
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .cycle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.65rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--text-dim);
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .cycle-bar-track {
+      width: 100%;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .cycle-bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--cyan), var(--emerald), var(--gold));
+      transition: width 0.5s ease;
+    }
+
+    .error-banner {
+      display: none;
+      background: rgba(120, 18, 42, 0.85);
+      border: 1px solid var(--danger);
+      color: #ffdce3;
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 0.68rem;
+      text-align: center;
+    }
+    .error-banner.visible {
+      display: block;
+    }
+
+    /* Landscape Responsive Layout */
+    @media (orientation: landscape) and (max-height: 600px) {
+      #hud {
+        flex-direction: row;
+        align-items: stretch;
+        justify-content: space-between;
+      }
+      .top-stack {
+        max-width: 310px;
+        margin: 0;
+        justify-content: flex-start;
+      }
+      .vessel-callout {
+        align-self: flex-end;
+      }
+      .bottom-stack {
+        max-width: 310px;
+        margin: 0;
+        justify-content: flex-end;
+      }
+      .epoch-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    /* Modern Light-Dismiss Settings Dialog */
+    dialog#settingsDialog {
+      margin: auto;
+      width: min(92vw, 420px);
+      max-height: 86vh;
+      background: rgba(7, 20, 38, 0.96);
+      color: var(--text-main);
+      border: 1px solid var(--border-glass);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+      overflow-y: auto;
+    }
+
+    dialog#settingsDialog::backdrop {
+      background-color: rgba(0, 0, 0, 0.62);
+      backdrop-filter: blur(4px);
+    }
+
+    .dialog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .dialog-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .field-group {
+      margin-bottom: 11px;
+    }
+
+    .field-group label {
+      display: block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .field-group input,
+    .field-group select {
+      width: 100%;
+      background: rgba(3, 10, 20, 0.9);
+      border: 1px solid rgba(72, 219, 251, 0.3);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text-main);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.76rem;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00d2ff, #00f5a0);
+      color: #02101d;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.76rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    details.diag-drawer {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+    }
+
+    details.diag-drawer summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--gold);
+      margin-bottom: 8px;
+    }
+
+    .diag-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container" aria-label="Three.js Glass Epoch Water Container"></div>
+
+  <div id="hud">
+    <!-- UPPER AREA: Halving Forecast & Brand Status -->
+    <div class="top-stack">
+      <div class="brand-bar">
+        <div class="title-pill">
+          <span id="statusDot" class="status-dot"></span>
+          <span class="brand-title">CKB Halving</span>
+          <span id="statusBadge" class="status-badge">CONNECTING</span>
+        </div>
+        <div class="actions-row">
+          <button id="resyncBtn" class="icon-btn" type="button" title="Resynchronize canonical chain tip">↻ SYNC</button>
+          <button id="settingsBtn" class="icon-btn" type="button" title="Configure CKB RPC &amp; ETA Model">⚙ SETTINGS</button>
+        </div>
+      </div>
+
+      <div class="halving-card">
+        <div class="halving-top-row">
+          <span class="eyebrow">Expected Next Primary Issuance Halving (Estimate)</span>
+          <span id="eraPill" class="era-pill">Era — → Era —</span>
+        </div>
+        <div class="eta-date-row">
+          <div id="etaLocalText" class="eta-local">Awaiting live CKB chain state…</div>
+          <div id="etaUtcText" class="eta-utc">UTC —</div>
+        </div>
+        <div class="countdown-row">
+          <div id="countdownText" class="countdown-clock">—Y —D —:—:—</div>
+          <div id="targetEpochText" class="target-epoch-label">TARGET EPOCH —</div>
+        </div>
+        <div class="halving-note">
+          <span>Primary issuance reduces 50% every 8,760 epochs (~4 yrs). Secondary issuance is unaffected.</span>
+          <span id="paceModelText">Epoch pace: awaiting chain sample…</span>
+        </div>
+      </div>
+
+      <div id="errorBanner" class="error-banner" role="status"></div>
+    </div>
+
+    <!-- CENTER FLOATING CALLOUT BELOW/AROUND VESSEL -->
+    <div class="vessel-callout">
+      <span id="vesselEpochLabel" class="vessel-epoch-tag">EPOCH —</span>
+      <span id="vesselBlocksLabel" style="font-size:0.75rem; color:var(--text-main); font-family:monospace;">— / — blocks</span>
+      <span id="vesselPctLabel" class="vessel-pct-tag">—%</span>
+    </div>
+
+    <!-- LOWER AREA: Current Epoch Metrics & 8,760-Epoch Halving Cycle Progress -->
+    <div class="bottom-stack">
+      <div class="epoch-grid">
+        <div class="metric-box">
+          <div class="metric-label">Current Epoch</div>
+          <div id="hudEpochNum" class="metric-val">—</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Blocks</div>
+          <div id="hudEpochBlocks" class="metric-val">— / —</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Remaining</div>
+          <div id="hudEpochRemaining" class="metric-val">—</div>
+        </div>
+        <div class="metric-box">
+          <div class="metric-label">Chain Tip</div>
+          <div id="hudTipNumber" class="metric-val">#—</div>
+        </div>
+      </div>
+
+      <div class="cycle-strip">
+        <div class="cycle-row">
+          <span>PRIMARY ISSUANCE ERA: <strong id="hudEraLabel" style="color:var(--text-main);">—</strong></span>
+          <span>HALVING CYCLE: <strong id="hudCyclePct" style="color:var(--gold);">—%</strong></span>
+          <span>EPOCHS LEFT: <strong id="hudEpochsLeft" style="color:var(--cyan);">—</strong></span>
+        </div>
+        <div class="cycle-bar-track">
+          <div id="cycleBarFill" class="cycle-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS & DIAGNOSTICS MODAL DIALOG -->
+  <dialog id="settingsDialog" closedby="any" aria-labelledby="settingsTitle">
+    <div class="dialog-header">
+      <h2 id="settingsTitle" class="dialog-title">CKB Network &amp; ETA Settings</h2>
+      <button id="closeSettingsBtn" class="btn-secondary" type="button">✕</button>
+    </div>
+    <form id="settingsForm" method="dialog">
+      <div class="field-group">
+        <label for="httpRpcInput">HTTP JSON-RPC Endpoint</label>
+        <input id="httpRpcInput" type="url" required placeholder="https://mainnet.ckb.dev/" />
+      </div>
+      <div class="field-group">
+        <label for="wsRpcInput">WebSocket Endpoint (Optional)</label>
+        <input id="wsRpcInput" type="text" placeholder="wss://mainnet.ckb.dev/ws" />
+      </div>
+      <div class="field-group">
+        <label for="liveModeSelect">Live Transport Mode</label>
+        <select id="liveModeSelect">
+          <option value="AUTO">AUTO (WebSocket preferred, HTTP Poll fallback)</option>
+          <option value="WEBSOCKET">WEBSOCKET ONLY (subscribe new_tip_header)</option>
+          <option value="POLLING">HTTP POLLING ONLY (get_tip_header every 5s)</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label for="sampleSizeSelect">Historical Epoch Sample Size (ETA Pace)</label>
+        <select id="sampleSizeSelect">
+          <option value="12">Last 12 completed epochs</option>
+          <option value="24">Last 24 completed epochs</option>
+          <option value="36">Last 36 completed epochs</option>
+          <option value="48">Last 48 completed epochs</option>
+        </select>
+      </div>
+      <div class="dialog-actions">
+        <button id="resetDefaultsBtn" class="btn-secondary" type="button">Defaults</button>
+        <button id="saveSettingsBtn" class="btn-primary" type="submit">Apply &amp; Reconnect</button>
+      </div>
+    </form>
+
+    <details class="diag-drawer">
+      <summary>Acceptance &amp; Boundary Verification Tools</summary>
+      <p>Verify epoch boundary overflow/reset and 8,760-epoch halving math, then click <strong>↻ SYNC</strong> to restore live canonical state.</p>
+      <div class="diag-grid">
+        <button id="testDropBtn" class="btn-secondary" type="button">Test Block Droplet</button>
+        <button id="testBoundaryBtn" class="btn-secondary" type="button">Test Epoch Rollover</button>
+        <button id="testHalvingMathBtn" class="btn-secondary" type="button">Verify 8,760 Math</button>
+        <button id="restoreLiveBtn" class="btn-secondary" type="button">Restore Live Tip</button>
+      </div>
+      <pre id="diagOutput" style="margin-top:8px; font-size:0.64rem; color:var(--emerald); white-space:pre-wrap;"></pre>
+    </details>
+  </dialog>
+
+  <script src="three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+  <script>
+  (() => {
+    'use strict';
+
+    /* =========================================================================
+     * 1. CONFIG LAYER
+     * ========================================================================= */
+    const STORAGE_KEY = 'ckb_halving_water_visualizer_v1';
+    const HALVING_INTERVAL = 8760n;
+    const DEFAULT_EPOCH_MS = 4 * 60 * 60 * 1000; // 4 hours baseline (14,400,000 ms)
+    const POLL_INTERVAL_MS = 5000;
+
+    const DEFAULT_CONFIG = {
+      rpcUrl: 'https://mainnet.ckb.dev/',
+      wsUrl: 'wss://mainnet.ckb.dev/ws',
+      liveMode: 'AUTO', // AUTO | WEBSOCKET | POLLING
+      sampleSize: 24
+    };
+
+    function loadConfig() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return { ...DEFAULT_CONFIG };
+        const parsed = JSON.parse(raw);
+        return {
+          rpcUrl: (parsed.rpcUrl || DEFAULT_CONFIG.rpcUrl).trim(),
+          wsUrl: typeof parsed.wsUrl === 'string' ? parsed.wsUrl.trim() : DEFAULT_CONFIG.wsUrl,
+          liveMode: ['AUTO', 'WEBSOCKET', 'POLLING'].includes(parsed.liveMode) ? parsed.liveMode : 'AUTO',
+          sampleSize: [12, 24, 36, 48].includes(Number(parsed.sampleSize)) ? Number(parsed.sampleSize) : 24
+        };
+      } catch (_) {
+        return { ...DEFAULT_CONFIG };
+      }
+    }
+
+    function saveConfig(cfg) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+      } catch (_) {}
+    }
+
+    /* =========================================================================
+     * 2. APP STATE LAYER
+     * ========================================================================= */
+    const config = loadConfig();
+
+    const state = {
+      connection: {
+        mode: 'offline', // live | polling | reconnecting | offline
+        rpcUrl: config.rpcUrl,
+        wsUrl: config.wsUrl,
+        liveMode: config.liveMode,
+        lastError: null,
+        stale: false
+      },
+      chain: {
+        tipHash: null,
+        tipNumber: null,      // BigInt
+        tipTimestamp: null,   // BigInt (ms)
+        seenHashes: new Set()
+      },
+      epoch: {
+        number: null,         // BigInt
+        index: null,          // BigInt
+        length: null,         // BigInt
+        completed: null,      // BigInt
+        remaining: null,      // BigInt
+        progress: 0,          // Number [0..1]
+        authoritativeStart: null // BigInt from get_current_epoch
+      },
+      halving: {
+        interval: HALVING_INTERVAL,
+        eraNumber: null,      // BigInt (1-based: Era 1 = 0..8759, Era 2 = 8760..17519)
+        targetEpoch: null,    // BigInt
+        epochsRemaining: null,// Number (fractional epochs remaining)
+        cycleProgress: 0,     // Number [0..1]
+        estimatedEpochMs: DEFAULT_EPOCH_MS,
+        paceSourceLabel: 'Epoch pace: 4h 00m target · awaiting sample',
+        sampledEpochNumber: null,
+        estimatedTimestamp: null, // Number (ms since epoch)
+        estimatedAtPerfMs: null   // performance.now() when forecast was computed
+      },
+      visual: {
+        actualEpochProgress: 0,
+        visualEpochProgress: 0,
+        hasHydrated: false,
+        overflowHoldTimer: 0
+      }
+    };
+
+    /* =========================================================================
+     * 3. CKB NORMALIZATION & HALVING / ETA MODEL LAYER
+     * ========================================================================= */
+
+    /**
+     * Authoritative RFC-0027 64-bit packed epoch decoder using BigInt.
+     * - lowest 24 bits: epoch number
+     * - bits 24..39 (16 bits): block index within epoch
+     * - bits 40..55 (16 bits): epoch length
+     */
+    function decodeEpoch(epochHex) {
+      const v = BigInt(epochHex);
+      return {
+        number: v & 0xFFFFFFn,
+        index: (v >> 24n) & 0xFFFFn,
+        length: (v >> 40n) & 0xFFFFn
+      };
+    }
+
+    /**
+     * Generic CKB primary issuance halving target calculation.
+     * Halving occurs every 8,760 epochs (determined by epoch number, NOT block height).
+     */
+    function calculateNextHalvingEpoch(currentEpochBigInt) {
+      const eraIndex = currentEpochBigInt / HALVING_INTERVAL;
+      return (eraIndex + 1n) * HALVING_INTERVAL;
+    }
+
+    function normalizeHeader(rawHeader) {
+      if (!rawHeader || !rawHeader.epoch || !rawHeader.number || !rawHeader.hash) {
+        throw new Error('Malformed CKB header payload');
+      }
+      const decoded = decodeEpoch(rawHeader.epoch);
+      const safeLength = decoded.length > 0n ? decoded.length : 1n;
+      const completed = decoded.index + 1n <= safeLength ? (decoded.index + 1n) : safeLength;
+      const remaining = safeLength > completed ? (safeLength - completed) : 0n;
+      const progress = Number(completed) / Number(safeLength);
+
+      return {
+        hash: String(rawHeader.hash),
+        number: BigInt(rawHeader.number),
+        timestamp: BigInt(rawHeader.timestamp),
+        epoch: {
+          number: decoded.number,
+          index: decoded.index,
+          length: safeLength,
+          completed,
+          remaining,
+          progress
+        }
+      };
+    }
+
+    function updateHalvingAndEtaModel() {
+      if (state.epoch.number === null || state.epoch.length === null) return;
+
+      const currentEpoch = state.epoch.number;
+      const eraIndex = currentEpoch / HALVING_INTERVAL; // 0n for 0..8759, 1n for 8760..17519
+      const nextHalvingEpoch = calculateNextHalvingEpoch(currentEpoch);
+
+      const completedNum = Number(state.epoch.completed);
+      const lengthNum = Number(state.epoch.length);
+      const currentEpochFraction = lengthNum > 0 ? (completedNum / lengthNum) : 0;
+
+      // Keep chain integers as BigInt until the explicit fractional epoch boundary
+      const wholeEpochsAfterCurrent = Number(nextHalvingEpoch - currentEpoch - 1n);
+      const epochsUntilHalving = Math.max(0, wholeEpochsAfterCurrent + (1 - currentEpochFraction));
+
+      const epochsIntoCycle = Number(currentEpoch % HALVING_INTERVAL) + currentEpochFraction;
+      const halvingCycleProgress = Math.min(1, Math.max(0, epochsIntoCycle / Number(HALVING_INTERVAL)));
+
+      // ETA = latest chain timestamp + remaining fractional epochs * estimated epoch duration
+      const baseChainTs = Number(state.chain.tipTimestamp || BigInt(Date.now()));
+      const estimatedTimestamp = Math.round(baseChainTs + epochsUntilHalving * state.halving.estimatedEpochMs);
+
+      state.halving.eraNumber = eraIndex + 1n;
+      state.halving.targetEpoch = nextHalvingEpoch;
+      state.halving.epochsRemaining = epochsUntilHalving;
+      state.halving.cycleProgress = halvingCycleProgress;
+      state.halving.estimatedTimestamp = estimatedTimestamp;
+      state.halving.estimatedAtPerfMs = performance.now();
+    }
+
+    /**
+     * Processes a normalized CKB header tip through deduplication, epoch-boundary
+     * detection, water level target binding, and halving ETA recalculation.
+     */
+    function applyNormalizedTip(norm, options = { isInitialHydration: false, allowReorgSnap: false }) {
+      const isDuplicate = state.chain.seenHashes.has(norm.hash);
+      if (isDuplicate && !options.isInitialHydration && !options.allowReorgSnap) {
+        return false;
+      }
+
+      state.chain.seenHashes.add(norm.hash);
+      if (state.chain.seenHashes.size > 400) {
+        const first = state.chain.seenHashes.values().next().value;
+        state.chain.seenHashes.delete(first);
+      }
+
+      const prevEpochNumber = state.epoch.number;
+      const prevTipNumber = state.chain.tipNumber;
+      const isNewEpochBoundary = (
+        prevEpochNumber !== null &&
+        norm.epoch.number !== prevEpochNumber &&
+        !options.isInitialHydration
+      );
+
+      state.chain.tipHash = norm.hash;
+      state.chain.tipNumber = norm.number;
+      state.chain.tipTimestamp = norm.timestamp;
+      state.connection.stale = false;
+      state.connection.lastError = null;
+
+      state.epoch.number = norm.epoch.number;
+      state.epoch.index = norm.epoch.index;
+      state.epoch.length = norm.epoch.length;
+      state.epoch.completed = norm.epoch.completed;
+      state.epoch.remaining = norm.epoch.remaining;
+      state.epoch.progress = norm.epoch.progress;
+
+      state.visual.actualEpochProgress = norm.epoch.progress;
+
+      if (!state.visual.hasHydrated || options.isInitialHydration) {
+        state.visual.hasHydrated = true;
+        state.visual.visualEpochProgress = norm.epoch.progress;
+      } else if (isNewEpochBoundary) {
+        // Epoch rollover: briefly celebrate completion (100% full) before draining to new epoch %
+        triggerEpochBoundaryEffect();
+        refreshAuthoritativeEpochAndPace(true);
+      } else {
+        // Normal new block arrival: drop a droplet + ripple + bubbles
+        triggerNewBlockWaterEffect();
+      }
+
+      // If chain height moved backward (reorg) or jumped significantly, snap visual progress smoothly
+      if (prevTipNumber !== null && norm.number <= prevTipNumber && !isDuplicate) {
+        triggerNewBlockWaterEffect();
+      }
+
+      updateHalvingAndEtaModel();
+      renderHud();
+
+      // Trigger initial historical epoch pace sampling once we know the current epoch
+      if (state.halving.sampledEpochNumber !== state.epoch.number) {
+        sampleHistoricalEpochPace(state.epoch.number, config.sampleSize);
+      }
+
+      return true;
+    }
+
+    /* =========================================================================
+     * 4. CKB TRANSPORT LAYER (JSON-RPC HTTP + WebSocket + Historical Pace Sampler)
+     * ========================================================================= */
+    let rpcRequestId = 1;
+    let activeSocket = null;
+    let reconnectTimer = null;
+    let pollTimer = null;
+    let reconnectAttempts = 0;
+    let wsConsecutiveFailures = 0;
+    let paceSamplingInFlight = false;
+
+    async function ckbRpcFetch(method, params = [], timeoutMs = 8000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(state.connection.rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            id: rpcRequestId++,
+            jsonrpc: '2.0',
+            method,
+            params
+          }),
+          signal: controller.signal
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message || 'RPC Error');
+        return data.result;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    async function fetchCanonicalTipAndHydrate(isInitial = false) {
+      try {
+        const header = await ckbRpcFetch('get_tip_header', []);
+        const norm = normalizeHeader(header);
+        applyNormalizedTip(norm, { isInitialHydration: isInitial, allowReorgSnap: true });
+
+        // Also query get_current_epoch during initial hydration to confirm authoritative metadata
+        if (isInitial) {
+          refreshAuthoritativeEpochAndPace(false);
+        }
+        return true;
+      } catch (err) {
+        state.connection.lastError = `RPC error: ${err.message || 'Unable to reach CKB node'}`;
+        state.connection.stale = true;
+        if (!state.visual.hasHydrated) {
+          setConnectionMode('offline');
+        }
+        renderHud();
+        return false;
+      }
+    }
+
+    async function refreshAuthoritativeEpochAndPace(forceResample = false) {
+      try {
+        const ep = await ckbRpcFetch('get_current_epoch', []);
+        if (ep && ep.number && ep.length) {
+          const authNum = BigInt(ep.number);
+          const authLen = BigInt(ep.length);
+          state.epoch.authoritativeStart = ep.start_number ? BigInt(ep.start_number) : null;
+          if (state.epoch.number === authNum && authLen > 0n && state.epoch.length !== authLen) {
+            state.epoch.length = authLen;
+            state.epoch.remaining = authLen > state.epoch.completed ? (authLen - state.epoch.completed) : 0n;
+            state.epoch.progress = Number(state.epoch.completed) / Number(authLen);
+            state.visual.actualEpochProgress = state.epoch.progress;
+            updateHalvingAndEtaModel();
+            renderHud();
+          }
+          if (forceResample) {
+            sampleHistoricalEpochPace(authNum, config.sampleSize);
+          }
+        }
+      } catch (_) {
+        // Non-fatal if get_current_epoch is unsupported on a restricted proxy
+      }
+    }
+
+    function formatDurationHm(ms) {
+      const totalMin = Math.round(ms / 60000);
+      const hrs = Math.floor(totalMin / 60);
+      const mins = totalMin % 60;
+      return `${hrs}h ${String(mins).padStart(2, '0')}m`;
+    }
+
+    /**
+     * Enhanced Historical Pace Estimator (Sections 12 & 13):
+     * Queries start-block timestamps for the last N completed epochs using
+     * `get_epoch_by_number` + `get_header_by_number` (with `get_block_by_number` fallback)
+     * with bounded concurrency, then computes a robust trimmed mean / median epoch duration.
+     */
+    async function sampleHistoricalEpochPace(currentEpochBigInt, sampleCount = 24) {
+      if (paceSamplingInFlight || currentEpochBigInt === null || currentEpochBigInt < 4n) return;
+      paceSamplingInFlight = true;
+      state.halving.sampledEpochNumber = currentEpochBigInt;
+
+      try {
+        const count = Math.min(Number(currentEpochBigInt - 1n), Math.max(8, Number(sampleCount) || 24));
+        // Fetch boundary epochs in compact strides (up to 16 boundary points across the window)
+        // so we measure both individual epoch variance and exact window duration without flooding RPC
+        const stride = count > 16 ? Math.max(1, Math.floor(count / 12)) : 1;
+        const epochNums = [];
+        for (let offset = 0; offset <= count; offset += stride) {
+          const eNum = currentEpochBigInt - BigInt(offset);
+          if (eNum >= 0n) epochNums.push(eNum);
+        }
+
+        async function getEpochStartTimestamp(epochNumBigInt) {
+          const hexNum = '0x' + epochNumBigInt.toString(16);
+          const epInfo = await ckbRpcFetch('get_epoch_by_number', [hexNum]);
+          if (!epInfo || !epInfo.start_number) throw new Error('Missing epoch start_number');
+          const startBlockHex = epInfo.start_number;
+          try {
+            const hdr = await ckbRpcFetch('get_header_by_number', [startBlockHex]);
+            if (hdr && hdr.timestamp) return { epoch: Number(epochNumBigInt), ts: Number(BigInt(hdr.timestamp)) };
+          } catch (_) {}
+          const blk = await ckbRpcFetch('get_block_by_number', [startBlockHex]);
+          if (blk && blk.header && blk.header.timestamp) {
+            return { epoch: Number(epochNumBigInt), ts: Number(BigInt(blk.header.timestamp)) };
+          }
+          throw new Error('Header timestamp unavailable');
+        }
+
+        // Execute with max concurrency of 4
+        const results = [];
+        const queue = [...epochNums];
+        const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+          while (queue.length > 0) {
+            const target = queue.shift();
+            const item = await getEpochStartTimestamp(target);
+            results.push(item);
+          }
+        });
+        await Promise.all(workers);
+
+        results.sort((a, b) => a.epoch - b.epoch);
+        const perEpochDurations = [];
+        for (let i = 1; i < results.length; i++) {
+          const dEpoch = results[i].epoch - results[i - 1].epoch;
+          const dTime = results[i].ts - results[i - 1].ts;
+          if (dEpoch > 0 && dTime > 0) {
+            const avgMs = dTime / dEpoch;
+            // Sanity filter: between 1 hour and 12 hours per epoch
+            if (avgMs >= 3600_000 && avgMs <= 43200_000) {
+              perEpochDurations.push(avgMs);
+            }
+          }
+        }
+
+        if (perEpochDurations.length >= 3) {
+          perEpochDurations.sort((a, b) => a - b);
+          // Trimmed mean (drop lowest and highest 15%)
+          const trim = Math.max(1, Math.floor(perEpochDurations.length * 0.15));
+          const sliced = perEpochDurations.length > trim * 2
+            ? perEpochDurations.slice(trim, perEpochDurations.length - trim)
+            : perEpochDurations;
+          const meanMs = sliced.reduce((acc, v) => acc + v, 0) / sliced.length;
+
+          state.halving.estimatedEpochMs = meanMs;
+          state.halving.paceSourceLabel = `Epoch pace: ${formatDurationHm(meanMs)} avg · last ${count} epochs`;
+          updateHalvingAndEtaModel();
+          renderHud();
+        } else {
+          throw new Error('Insufficient valid epoch intervals');
+        }
+      } catch (_) {
+        // Section 13: Graceful fallback to 4h target if historical sampling fails
+        state.halving.estimatedEpochMs = DEFAULT_EPOCH_MS;
+        state.halving.paceSourceLabel = 'Epoch pace: 4h 00m target · historical sample unavailable';
+        updateHalvingAndEtaModel();
+        renderHud();
+      } finally {
+        paceSamplingInFlight = false;
+      }
+    }
+
+    function setConnectionMode(mode) {
+      state.connection.mode = mode;
+      renderHud();
+    }
+
+    function clearTransportTimersAndSocket() {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+      if (activeSocket) {
+        try {
+          activeSocket.onopen = null;
+          activeSocket.onmessage = null;
+          activeSocket.onerror = null;
+          activeSocket.onclose = null;
+          activeSocket.close();
+        } catch (_) {}
+        activeSocket = null;
+      }
+    }
+
+    function startHttpPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      setConnectionMode('polling');
+      fetchCanonicalTipAndHydrate(!state.visual.hasHydrated);
+      pollTimer = setInterval(() => {
+        fetchCanonicalTipAndHydrate(false);
+      }, POLL_INTERVAL_MS);
+    }
+
+    function scheduleWsReconnect() {
+      if (reconnectTimer) return;
+      wsConsecutiveFailures++;
+
+      // In AUTO mode, if WebSocket is absent or repeatedly fails, engage HTTP polling seamlessly
+      if (state.connection.liveMode === 'AUTO' && wsConsecutiveFailures >= 2) {
+        startHttpPolling();
+      } else {
+        setConnectionMode('reconnecting');
+      }
+
+      const baseDelay = Math.min(20000, 1500 * Math.pow(1.7, Math.min(reconnectAttempts, 6)));
+      const jitter = Math.random() * 600;
+      reconnectAttempts++;
+
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        if (state.connection.liveMode !== 'POLLING' && state.connection.wsUrl) {
+          connectWebSocket();
+        }
+      }, baseDelay + jitter);
+    }
+
+    function connectWebSocket() {
+      if (!state.connection.wsUrl) {
+        startHttpPolling();
+        return;
+      }
+      if (activeSocket) {
+        try { activeSocket.close(); } catch (_) {}
+        activeSocket = null;
+      }
+
+      let ws;
+      try {
+        ws = new WebSocket(state.connection.wsUrl);
+      } catch (err) {
+        scheduleWsReconnect();
+        return;
+      }
+      activeSocket = ws;
+
+      ws.onopen = () => {
+        if (activeSocket !== ws) return;
+        reconnectAttempts = 0;
+        wsConsecutiveFailures = 0;
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+        setConnectionMode('live');
+        // Subscribe to new_tip_header
+        ws.send(JSON.stringify({
+          id: rpcRequestId++,
+          jsonrpc: '2.0',
+          method: 'subscribe',
+          params: ['new_tip_header']
+        }));
+        // Fetch canonical tip after connect/reconnect
+        fetchCanonicalTipAndHydrate(!state.visual.hasHydrated);
+      };
+
+      ws.onmessage = (ev) => {
+        if (activeSocket !== ws) return;
+        try {
+          const msg = JSON.parse(ev.data);
+          // Distinguish subscription acknowledgement from push notifications
+          if (msg.method === 'subscribe' && msg.params && msg.params.result) {
+            const rawHeader = typeof msg.params.result === 'string'
+              ? JSON.parse(msg.params.result)
+              : msg.params.result;
+            const norm = normalizeHeader(rawHeader);
+            applyNormalizedTip(norm, { isInitialHydration: false, allowReorgSnap: false });
+          }
+        } catch (_) {}
+      };
+
+      ws.onerror = () => {
+        if (activeSocket !== ws) return;
+      };
+
+      ws.onclose = () => {
+        if (activeSocket !== ws) return;
+        activeSocket = null;
+        scheduleWsReconnect();
+      };
+    }
+
+    async function startTransport() {
+      clearTransportTimersAndSocket();
+      reconnectAttempts = 0;
+      wsConsecutiveFailures = 0;
+
+      // Always hydrate immediately via HTTP JSON-RPC so the vessel starts at the real current level
+      await fetchCanonicalTipAndHydrate(!state.visual.hasHydrated);
+
+      if (state.connection.liveMode === 'POLLING' || !state.connection.wsUrl) {
+        startHttpPolling();
+      } else {
+        connectWebSocket();
+      }
+    }
+
+    /* =========================================================================
+     * 5. THREE.JS VISUALIZATION LAYER (Glass Epoch Water Container)
+     * ========================================================================= */
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+    container.appendChild(renderer.domElement);
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0x88c8ff, 0.72);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xe8f7ff, 1.35);
+    keyLight.position.set(4.5, 7.0, 5.5);
+    scene.add(keyLight);
+
+    const rimLight = new THREE.PointLight(0x00f5a0, 1.2, 14);
+    rimLight.position.set(-3.5, 1.5, -3.0);
+    scene.add(rimLight);
+
+    const pulseLight = new THREE.PointLight(0x38e4ff, 0.9, 10);
+    pulseLight.position.set(0, 0.5, 2.6);
+    scene.add(pulseLight);
+
+    // Root group for touch orbit / tilt
+    const vesselGroup = new THREE.Group();
+    scene.add(vesselGroup);
+
+    // Tank dimensions: inner height spans y = -1.70 (0% bottom) to y = +1.70 (100% full)
+    const TANK_RADIUS = 1.08;
+    const WATER_RADIUS = 1.015;
+    const TANK_HEIGHT = 3.40;
+    const TANK_BOTTOM_Y = -TANK_HEIGHT * 0.5; // -1.70
+
+    // 1. Metallic Base Pedestal & Upper Condenser Crown
+    const metalMat = new THREE.MeshStandardMaterial({
+      color: 0x16293d,
+      metalness: 0.85,
+      roughness: 0.24
+    });
+    const brassRingMat = new THREE.MeshStandardMaterial({
+      color: 0xffd166,
+      metalness: 0.88,
+      roughness: 0.22,
+      emissive: 0x3a2800,
+      emissiveIntensity: 0.25
+    });
+
+    const basePedestal = new THREE.Mesh(
+      new THREE.CylinderGeometry(TANK_RADIUS * 1.14, TANK_RADIUS * 1.22, 0.28, 48),
+      metalMat
+    );
+    basePedestal.position.y = TANK_BOTTOM_Y - 0.15;
+    vesselGroup.add(basePedestal);
+
+    const baseGlowRing = new THREE.Mesh(
+      new THREE.TorusGeometry(TANK_RADIUS * 1.06, 0.026, 16, 64),
+      brassRingMat
+    );
+    baseGlowRing.rotation.x = Math.PI * 0.5;
+    baseGlowRing.position.y = TANK_BOTTOM_Y - 0.01;
+    vesselGroup.add(baseGlowRing);
+
+    const topCrown = new THREE.Mesh(
+      new THREE.CylinderGeometry(TANK_RADIUS * 1.12, TANK_RADIUS * 1.08, 0.20, 48),
+      metalMat
+    );
+    topCrown.position.y = TANK_BOTTOM_Y + TANK_HEIGHT + 0.11;
+    vesselGroup.add(topCrown);
+
+    const topNozzle = new THREE.Mesh(
+      new THREE.ConeGeometry(0.16, 0.28, 24),
+      brassRingMat
+    );
+    topNozzle.rotation.x = Math.PI;
+    topNozzle.position.y = TANK_BOTTOM_Y + TANK_HEIGHT - 0.04;
+    vesselGroup.add(topNozzle);
+
+    // Four vertical structural struts around the glass cylinder
+    for (let i = 0; i < 4; i++) {
+      const angle = (i / 4) * Math.PI * 2 + Math.PI * 0.25;
+      const strut = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.025, TANK_HEIGHT + 0.16, 12),
+        metalMat
+      );
+      strut.position.set(
+        Math.cos(angle) * (TANK_RADIUS * 1.10),
+        0,
+        Math.sin(angle) * (TANK_RADIUS * 1.10)
+      );
+      vesselGroup.add(strut);
+    }
+
+    // 2. Graduation Tick Rings (25%, 50%, 75%, 100%)
+    const tickMat = new THREE.MeshBasicMaterial({
+      color: 0x70e4ff,
+      transparent: true,
+      opacity: 0.36
+    });
+    [0.25, 0.50, 0.75, 1.0].forEach((pct) => {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(TANK_RADIUS + 0.008, pct === 0.5 || pct === 1.0 ? 0.012 : 0.007, 12, 64),
+        pct === 1.0 ? brassRingMat : tickMat
+      );
+      ring.rotation.x = Math.PI * 0.5;
+      ring.position.y = TANK_BOTTOM_Y + TANK_HEIGHT * pct;
+      vesselGroup.add(ring);
+    });
+
+    // 3. Stationary-Bottom Rising Water Column + Animated Shader Meniscus Surface
+    // IMPORTANT (Section 4): Translate cylinder geometry upward by +0.5 so y=0 is its bottom!
+    // Scaling waterBodyMesh.scale.y therefore keeps the bottom strictly stationary at TANK_BOTTOM_Y.
+    const waterColumnGeo = new THREE.CylinderGeometry(WATER_RADIUS, WATER_RADIUS, 1.0, 48, 24, true);
+    waterColumnGeo.translate(0, 0.5, 0);
+
+    const waterUniforms = {
+      uTime: { value: 0 },
+      uRippleAge: { value: 10.0 },
+      uRippleStrength: { value: 0.0 },
+      uOverflowGlow: { value: 0.0 }
+    };
+
+    const waterColumnMat = new THREE.ShaderMaterial({
+      uniforms: waterUniforms,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vViewPos;
+        uniform float uTime;
+        uniform float uRippleAge;
+        uniform float uRippleStrength;
+
+        void main() {
+          vUv = uv;
+          vec3 pos = position;
+          // Subtle top-edge wave undulation where vUv.y approaches 1.0
+          float topFactor = smoothstep(0.75, 1.0, uv.y);
+          float angle = atan(pos.z, pos.x);
+          float wave = sin(angle * 4.0 + uTime * 2.6) * 0.012
+                     + cos(angle * 3.0 - uTime * 2.1) * 0.010;
+          float ripple = sin(12.0 * (1.0 - uv.y) - uRippleAge * 9.0)
+                       * exp(-uRippleAge * 1.8) * uRippleStrength * 0.025;
+          pos.y += (wave + ripple) * topFactor;
+
+          vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+          vViewPos = -mvPos.xyz;
+          vNormal = normalMatrix * normal;
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vViewPos;
+        uniform float uTime;
+        uniform float uOverflowGlow;
+
+        void main() {
+          vec3 N = normalize(vNormal);
+          vec3 V = normalize(vViewPos);
+          float fresnel = pow(1.0 - abs(dot(N, V)), 2.2);
+
+          // Deep CKB ocean-cyan at bottom to luminous aqua-emerald near meniscus
+          vec3 deepCol = vec3(0.02, 0.34, 0.58);
+          vec3 topCol  = vec3(0.12, 0.85, 0.96);
+          vec3 col = mix(deepCol, topCol, pow(vUv.y, 0.85));
+
+          // Animated internal caustic bands
+          float caustic1 = sin(vUv.x * 25.0 + vUv.y * 14.0 + uTime * 2.2);
+          float caustic2 = cos(vUv.x * 19.0 - vUv.y * 18.0 + uTime * 1.7);
+          float caustic = smoothstep(0.35, 0.98, (caustic1 + caustic2) * 0.5);
+          col += vec3(0.08, 0.38, 0.45) * caustic * (0.35 + 0.65 * vUv.y);
+
+          // Fresnel rim highlight & epoch completion glow
+          col += vec3(0.35, 0.95, 1.0) * fresnel * 0.52;
+          col += vec3(1.0, 0.84, 0.40) * uOverflowGlow * 0.45;
+
+          float alpha = mix(0.62, 0.82, fresnel) + vUv.y * 0.08;
+          gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.92));
+        }
+      `
+    });
+
+    const waterBodyMesh = new THREE.Mesh(waterColumnGeo, waterColumnMat);
+    waterBodyMesh.position.y = TANK_BOTTOM_Y;
+    waterBodyMesh.scale.y = 0.01;
+    vesselGroup.add(waterBodyMesh);
+
+    // Water Bottom Disc (stationary at TANK_BOTTOM_Y)
+    const waterBottomDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(WATER_RADIUS, 48),
+      new THREE.MeshBasicMaterial({ color: 0x05466e, transparent: true, opacity: 0.78, side: THREE.DoubleSide })
+    );
+    waterBottomDisc.rotation.x = -Math.PI * 0.5;
+    waterBottomDisc.position.y = TANK_BOTTOM_Y + 0.002;
+    vesselGroup.add(waterBottomDisc);
+
+    // Animated Top Water Surface Meniscus (Disc with concentric radial rings for vertex ripples)
+    const surfaceGeo = new THREE.RingGeometry(0.001, WATER_RADIUS, 56, 18);
+    surfaceGeo.rotateX(-Math.PI * 0.5);
+
+    const surfaceMat = new THREE.ShaderMaterial({
+      uniforms: waterUniforms,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      vertexShader: `
+        varying vec3 vPos;
+        varying vec3 vNormal;
+        uniform float uTime;
+        uniform float uRippleAge;
+        uniform float uRippleStrength;
+
+        float getSurfaceDisp(vec2 xz) {
+          float r = length(xz);
+          float ambient = sin(xz.x * 3.6 + uTime * 2.5) * 0.018
+                        + cos(xz.y * 4.1 - uTime * 2.1) * 0.016
+                        + sin((xz.x + xz.y) * 5.2 + uTime * 3.2) * 0.009;
+          float wavePhase = r * 14.0 - uRippleAge * 10.5;
+          float ringEnv = exp(-r * 1.4) * exp(-uRippleAge * 1.45) * uRippleStrength;
+          float blockRipple = sin(wavePhase) * 0.065 * ringEnv;
+          return ambient + blockRipple;
+        }
+
+        void main() {
+          vec3 p = position;
+          float dy = getSurfaceDisp(p.xz);
+          p.y += dy;
+
+          // Finite-difference normal for crisp specular highlights
+          float eps = 0.03;
+          float dx = getSurfaceDisp(p.xz + vec2(eps, 0.0)) - dy;
+          float dz = getSurfaceDisp(p.xz + vec2(0.0, eps)) - dy;
+          vNormal = normalize(normalMatrix * normalize(vec3(-dx, eps, -dz)));
+          vPos = p;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vPos;
+        varying vec3 vNormal;
+        uniform float uTime;
+        uniform float uRippleAge;
+        uniform float uRippleStrength;
+        uniform float uOverflowGlow;
+
+        void main() {
+          float r = length(vPos.xz) / 1.015;
+          vec3 N = normalize(vNormal);
+          vec3 L = normalize(vec3(0.5, 1.0, 0.6));
+          float spec = pow(max(0.0, dot(N, L)), 24.0);
+
+          vec3 base = mix(vec3(0.18, 0.90, 1.0), vec3(0.04, 0.58, 0.82), r * 0.75);
+          // Concentric ripple highlight rings
+          float ring = sin(r * 15.0 - uRippleAge * 10.5);
+          float ringMask = smoothstep(0.4, 0.98, ring) * exp(-uRippleAge * 1.5) * uRippleStrength;
+          // Bright meniscus rim where water meets glass wall
+          float meniscus = smoothstep(0.86, 1.0, r);
+
+          vec3 col = base
+                   + vec3(0.65, 0.98, 1.0) * spec * 0.9
+                   + vec3(0.55, 1.0, 0.90) * ringMask * 0.65
+                   + vec3(0.45, 0.95, 1.0) * meniscus * 0.55
+                   + vec3(1.0, 0.85, 0.40) * uOverflowGlow * 0.5;
+
+          gl_FragColor = vec4(col, 0.88);
+        }
+      `
+    });
+
+    const waterSurfaceMesh = new THREE.Mesh(surfaceGeo, surfaceMat);
+    waterSurfaceMesh.position.y = TANK_BOTTOM_Y + 0.02;
+    vesselGroup.add(waterSurfaceMesh);
+
+    // 4. Outer Transparent Borosilicate Glass Cylinder
+    const glassGeo = new THREE.CylinderGeometry(TANK_RADIUS, TANK_RADIUS, TANK_HEIGHT, 48, 1, true);
+    const glassMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: waterUniforms.uTime,
+        uOverflowGlow: waterUniforms.uOverflowGlow
+      },
+      transparent: true,
+      depthWrite: false,
+      side: THREE.FrontSide,
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewPos;
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+          vViewPos = -mvPos.xyz;
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * mvPos;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vViewPos;
+        varying vec2 vUv;
+        uniform float uOverflowGlow;
+
+        void main() {
+          vec3 N = normalize(vNormal);
+          vec3 V = normalize(vViewPos);
+          float fresnel = pow(1.0 - abs(dot(N, V)), 2.8);
+          // Vertical specular reflection streak on glass cylinder
+          float specStreak = smoothstep(0.92, 0.995, cos((vUv.x - 0.18) * 6.28318));
+          vec3 glassCol = vec3(0.65, 0.93, 1.0) * fresnel
+                        + vec3(0.90, 0.98, 1.0) * specStreak * 0.42
+                        + vec3(1.0, 0.84, 0.40) * uOverflowGlow * 0.35;
+          float alpha = clamp(fresnel * 0.58 + specStreak * 0.28 + 0.05, 0.05, 0.68);
+          gl_FragColor = vec4(glassCol, alpha);
+        }
+      `
+    });
+    const glassCylinder = new THREE.Mesh(glassGeo, glassMat);
+    vesselGroup.add(glassCylinder);
+
+    // 5. Pooled Micro-Bubbles Rising Inside the Water Volume (No per-frame allocation)
+    const BUBBLE_COUNT = 38;
+    const bubbleGeo = new THREE.SphereGeometry(0.024, 8, 8);
+    const bubbleMat = new THREE.MeshBasicMaterial({
+      color: 0xb8f7ff,
+      transparent: true,
+      opacity: 0.58
+    });
+    const bubbles = [];
+    for (let i = 0; i < BUBBLE_COUNT; i++) {
+      const m = new THREE.Mesh(bubbleGeo, bubbleMat);
+      const r = Math.sqrt(Math.random()) * (WATER_RADIUS * 0.85);
+      const a = Math.random() * Math.PI * 2;
+      const b = {
+        mesh: m,
+        baseX: Math.cos(a) * r,
+        baseZ: Math.sin(a) * r,
+        relY: Math.random(),
+        speed: 0.14 + Math.random() * 0.22,
+        wobblePhase: Math.random() * Math.PI * 2,
+        scale: 0.55 + Math.random() * 0.85
+      };
+      m.scale.setScalar(b.scale);
+      vesselGroup.add(m);
+      bubbles.push(b);
+    }
+
+    // 6. Pooled New-Block Falling Droplet & Splash Particles
+    const dropletMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.068, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0x70f8ff })
+    );
+    dropletMesh.visible = false;
+    vesselGroup.add(dropletMesh);
+
+    const dropletState = {
+      active: false,
+      y: 0,
+      vy: 0
+    };
+
+    const SPLASH_COUNT = 16;
+    const splashParticles = [];
+    const splashGeo = new THREE.SphereGeometry(0.022, 8, 8);
+    const splashMat = new THREE.MeshBasicMaterial({ color: 0x9efcff, transparent: true, opacity: 0.85 });
+    for (let i = 0; i < SPLASH_COUNT; i++) {
+      const sm = new THREE.Mesh(splashGeo, splashMat);
+      sm.visible = false;
+      vesselGroup.add(sm);
+      splashParticles.push({
+        mesh: sm,
+        active: false,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        age: 0,
+        maxAge: 0.55
+      });
+    }
+
+    function triggerNewBlockWaterEffect() {
+      dropletState.active = true;
+      dropletState.y = TANK_BOTTOM_Y + TANK_HEIGHT - 0.12;
+      dropletState.vy = -2.2;
+      dropletMesh.position.set(0, dropletState.y, 0);
+      dropletMesh.scale.set(0.85, 1.28, 0.85);
+      dropletMesh.visible = true;
+    }
+
+    function spawnWaterSurfaceSplash(surfaceY) {
+      waterUniforms.uRippleAge.value = 0.0;
+      waterUniforms.uRippleStrength.value = 1.0;
+
+      // Boost rising bubbles briefly
+      for (let i = 0; i < bubbles.length; i++) {
+        if (i % 3 === 0) bubbles[i].relY = 0.02 + Math.random() * 0.15;
+      }
+
+      for (let i = 0; i < splashParticles.length; i++) {
+        const sp = splashParticles[i];
+        const angle = (i / splashParticles.length) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+        const speed = 0.35 + Math.random() * 0.55;
+        sp.active = true;
+        sp.age = 0;
+        sp.maxAge = 0.42 + Math.random() * 0.25;
+        sp.vx = Math.cos(angle) * speed;
+        sp.vz = Math.sin(angle) * speed;
+        sp.vy = 1.15 + Math.random() * 0.85;
+        sp.mesh.position.set(0, surfaceY + 0.02, 0);
+        sp.mesh.visible = true;
+      }
+    }
+
+    function triggerEpochBoundaryEffect() {
+      // Hold tank visually at 100% full for ~1.4 seconds with golden-cyan overflow shimmer,
+      // then smoothly transition down to the new epoch's actual percentage
+      state.visual.visualEpochProgress = 1.0;
+      state.visual.overflowHoldTimer = 1.4;
+      waterUniforms.uOverflowGlow.value = 1.0;
+      spawnWaterSurfaceSplash(TANK_BOTTOM_Y + TANK_HEIGHT * 0.98);
+    }
+
+    // Touch / Drag Rotation Interaction
+    let targetRotY = 0.25;
+    let targetRotX = 0.08;
+    let isPointerDown = false;
+    let prevPointerX = 0;
+    let prevPointerY = 0;
+
+    container.addEventListener('pointerdown', (e) => {
+      isPointerDown = true;
+      prevPointerX = e.clientX;
+      prevPointerY = e.clientY;
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (!isPointerDown) return;
+      const dx = e.clientX - prevPointerX;
+      const dy = e.clientY - prevPointerY;
+      prevPointerX = e.clientX;
+      prevPointerY = e.clientY;
+      targetRotY += dx * 0.007;
+      targetRotX = Math.max(-0.28, Math.min(0.38, targetRotX + dy * 0.004));
+    });
+    window.addEventListener('pointerup', () => {
+      isPointerDown = false;
+    });
+
+    function updateCameraLayout() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      const isPortrait = h >= w;
+      camera.position.set(0, isPortrait ? 0.15 : 0.05, isPortrait ? 8.3 : 6.6);
+      camera.lookAt(0, isPortrait ? 0.08 : 0.0, 0);
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      renderer.setSize(w, h);
+    }
+    updateCameraLayout();
+
+    // Single Animation Loop (Section 5 & 24)
+    let lastFrameTime = performance.now();
+    function animate(nowMs) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, Math.max(0.001, (nowMs - lastFrameTime) * 0.001));
+      lastFrameTime = nowMs;
+
+      waterUniforms.uTime.value += dt;
+      waterUniforms.uRippleAge.value += dt;
+      waterUniforms.uRippleStrength.value = Math.max(0, waterUniforms.uRippleStrength.value - dt * 0.35);
+      waterUniforms.uOverflowGlow.value = Math.max(0, waterUniforms.uOverflowGlow.value - dt * 0.55);
+
+      // Smoothly ease visualEpochProgress toward actualEpochProgress (Section 26)
+      if (state.visual.overflowHoldTimer > 0) {
+        state.visual.overflowHoldTimer -= dt;
+      } else {
+        const diff = state.visual.actualEpochProgress - state.visual.visualEpochProgress;
+        state.visual.visualEpochProgress += diff * (1 - Math.exp(-dt * 4.2));
+      }
+
+      const clampedLevel = Math.max(0.008, Math.min(1.0, state.visual.visualEpochProgress));
+      const waterHeight = TANK_HEIGHT * clampedLevel;
+      const currentSurfaceY = TANK_BOTTOM_Y + waterHeight;
+
+      // Bottom remains stationary at TANK_BOTTOM_Y while top surface rises
+      waterBodyMesh.position.y = TANK_BOTTOM_Y;
+      waterBodyMesh.scale.y = waterHeight;
+      waterSurfaceMesh.position.y = currentSurfaceY;
+
+      // Update falling block droplet
+      if (dropletState.active) {
+        dropletState.vy -= 9.8 * dt;
+        dropletState.y += dropletState.vy * dt;
+        dropletMesh.position.y = dropletState.y;
+        if (dropletState.y <= currentSurfaceY) {
+          dropletState.active = false;
+          dropletMesh.visible = false;
+          spawnWaterSurfaceSplash(currentSurfaceY);
+        }
+      }
+
+      // Update splash droplets
+      for (let i = 0; i < splashParticles.length; i++) {
+        const sp = splashParticles[i];
+        if (!sp.active) continue;
+        sp.age += dt;
+        if (sp.age >= sp.maxAge) {
+          sp.active = false;
+          sp.mesh.visible = false;
+          continue;
+        }
+        sp.vy -= 6.5 * dt;
+        sp.mesh.position.x += sp.vx * dt;
+        sp.mesh.position.y += sp.vy * dt;
+        sp.mesh.position.z += sp.vz * dt;
+        if (sp.mesh.position.y < currentSurfaceY) {
+          sp.active = false;
+          sp.mesh.visible = false;
+        }
+      }
+
+      // Update rising micro-bubbles inside the water column
+      for (let i = 0; i < bubbles.length; i++) {
+        const b = bubbles[i];
+        b.relY += (b.speed / Math.max(0.35, clampedLevel)) * dt;
+        if (b.relY >= 0.98) b.relY = 0.02;
+        const by = TANK_BOTTOM_Y + b.relY * waterHeight;
+        const wobble = Math.sin(waterUniforms.uTime.value * 2.4 + b.wobblePhase) * 0.03;
+        b.mesh.position.set(b.baseX + wobble, by, b.baseZ);
+        b.mesh.visible = waterHeight > 0.08;
+      }
+
+      // Gentle turntable rotation
+      if (!isPointerDown) {
+        targetRotY += dt * 0.14;
+      }
+      vesselGroup.rotation.y += (targetRotY - vesselGroup.rotation.y) * 0.08;
+      vesselGroup.rotation.x += (targetRotX - vesselGroup.rotation.x) * 0.08;
+
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(animate);
+
+    /* =========================================================================
+     * 6. DOM UI LAYER & 1-SECOND DISPLAY COUNTDOWN
+     * ========================================================================= */
+    const elStatusDot = document.getElementById('statusDot');
+    const elStatusBadge = document.getElementById('statusBadge');
+    const elEraPill = document.getElementById('eraPill');
+    const elEtaLocalText = document.getElementById('etaLocalText');
+    const elEtaUtcText = document.getElementById('etaUtcText');
+    const elCountdownText = document.getElementById('countdownText');
+    const elTargetEpochText = document.getElementById('targetEpochText');
+    const elPaceModelText = document.getElementById('paceModelText');
+    const elErrorBanner = document.getElementById('errorBanner');
+
+    const elVesselEpochLabel = document.getElementById('vesselEpochLabel');
+    const elVesselBlocksLabel = document.getElementById('vesselBlocksLabel');
+    const elVesselPctLabel = document.getElementById('vesselPctLabel');
+
+    const elHudEpochNum = document.getElementById('hudEpochNum');
+    const elHudEpochBlocks = document.getElementById('hudEpochBlocks');
+    const elHudEpochRemaining = document.getElementById('hudEpochRemaining');
+    const elHudTipNumber = document.getElementById('hudTipNumber');
+    const elHudEraLabel = document.getElementById('hudEraLabel');
+    const elHudCyclePct = document.getElementById('hudCyclePct');
+    const elHudEpochsLeft = document.getElementById('hudEpochsLeft');
+    const elCycleBarFill = document.getElementById('cycleBarFill');
+
+    function formatInt(val) {
+      if (val === null || val === undefined) return '—';
+      return Number(val).toLocaleString();
+    }
+
+    function renderHud() {
+      // Connection Status
+      const mode = state.connection.mode;
+      elStatusDot.className = 'status-dot ' + mode;
+      elStatusBadge.textContent = mode.toUpperCase() + (state.connection.stale ? ' (STALE)' : '');
+
+      if (state.connection.lastError) {
+        elErrorBanner.textContent = state.connection.lastError;
+        elErrorBanner.classList.add('visible');
+      } else {
+        elErrorBanner.classList.remove('visible');
+      }
+
+      if (!state.visual.hasHydrated || state.epoch.number === null) {
+        return;
+      }
+
+      const epochStr = formatInt(state.epoch.number);
+      const completedStr = formatInt(state.epoch.completed);
+      const lengthStr = formatInt(state.epoch.length);
+      const remainingStr = formatInt(state.epoch.remaining);
+      const pctStr = (state.epoch.progress * 100).toFixed(2) + '%';
+
+      elVesselEpochLabel.textContent = `EPOCH ${epochStr}`;
+      elVesselBlocksLabel.textContent = `${completedStr} / ${lengthStr} blocks`;
+      elVesselPctLabel.textContent = pctStr;
+
+      elHudEpochNum.textContent = `Epoch ${epochStr}`;
+      elHudEpochBlocks.textContent = `${completedStr} / ${lengthStr}`;
+      elHudEpochRemaining.textContent = remainingStr;
+      elHudTipNumber.textContent = `#${formatInt(state.chain.tipNumber)}`;
+
+      // Halving & Era Info
+      const era = state.halving.eraNumber;
+      const nextEra = era !== null ? (era + 1n) : null;
+      elEraPill.textContent = era !== null ? `Era ${era} → Era ${nextEra} (Est.)` : 'Era —';
+      elHudEraLabel.textContent = era !== null ? `Era ${era}` : '—';
+      elTargetEpochText.textContent = `TARGET EPOCH ${formatInt(state.halving.targetEpoch)}`;
+      elPaceModelText.textContent = state.halving.paceSourceLabel;
+
+      const cyclePct = (state.halving.cycleProgress * 100).toFixed(2) + '%';
+      elHudCyclePct.textContent = cyclePct;
+      elCycleBarFill.style.width = `${(state.halving.cycleProgress * 100).toFixed(2)}%`;
+      elHudEpochsLeft.textContent = state.halving.epochsRemaining !== null
+        ? state.halving.epochsRemaining.toFixed(2)
+        : '—';
+
+      if (state.halving.estimatedTimestamp !== null) {
+        const dt = new Date(state.halving.estimatedTimestamp);
+        const localFormatted = dt.toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const utcFormatted = dt.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+        elEtaLocalText.textContent = `${localFormatted} (Est.)`;
+        elEtaUtcText.textContent = utcFormatted;
+      }
+
+      updateCountdownClockDisplay();
+    }
+
+    /**
+     * Separate 1-second Display Timer (Section 14):
+     * Counts down smoothly toward the current forecast using the browser clock
+     * without making blockchain RPC requests every second.
+     */
+    function updateCountdownClockDisplay() {
+      if (state.halving.estimatedTimestamp === null) return;
+      const now = Date.now();
+      const diffMs = Math.max(0, state.halving.estimatedTimestamp - now);
+      const totalSec = Math.floor(diffMs / 1000);
+
+      const daysTotal = Math.floor(totalSec / 86400);
+      const years = Math.floor(daysTotal / 365);
+      const days = daysTotal % 365;
+      const hours = Math.floor((totalSec % 86400) / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      const secs = totalSec % 60;
+
+      const hms = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      elCountdownText.textContent = years > 0
+        ? `${years}Y ${days}D ${hms}`
+        : `${daysTotal}D ${hms}`;
+    }
+    setInterval(updateCountdownClockDisplay, 1000);
+
+    /* =========================================================================
+     * 7. SETTINGS MODAL, ACCEPTANCE TESTS & MOBILE LIFECYCLE
+     * ========================================================================= */
+    const settingsDialog = document.getElementById('settingsDialog');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const resyncBtn = document.getElementById('resyncBtn');
+    const settingsForm = document.getElementById('settingsForm');
+    const httpRpcInput = document.getElementById('httpRpcInput');
+    const wsRpcInput = document.getElementById('wsRpcInput');
+    const liveModeSelect = document.getElementById('liveModeSelect');
+    const sampleSizeSelect = document.getElementById('sampleSizeSelect');
+    const resetDefaultsBtn = document.getElementById('resetDefaultsBtn');
+    const diagOutput = document.getElementById('diagOutput');
+
+    // Fallback for browsers that do not yet support <dialog closedby="any">
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      settingsDialog.addEventListener('click', (event) => {
+        if (event.target !== settingsDialog) return;
+        const rect = settingsDialog.getBoundingClientRect();
+        const isDialogContent = (
+          rect.top <= event.clientY &&
+          event.clientY <= rect.top + rect.height &&
+          rect.left <= event.clientX &&
+          event.clientX <= rect.left + rect.width
+        );
+        if (isDialogContent) return;
+        settingsDialog.close();
+      });
+    }
+
+    settingsBtn.addEventListener('click', () => {
+      httpRpcInput.value = config.rpcUrl;
+      wsRpcInput.value = config.wsUrl;
+      liveModeSelect.value = config.liveMode;
+      sampleSizeSelect.value = String(config.sampleSize);
+      settingsDialog.showModal();
+    });
+
+    closeSettingsBtn.addEventListener('click', () => settingsDialog.close());
+
+    resetDefaultsBtn.addEventListener('click', () => {
+      httpRpcInput.value = DEFAULT_CONFIG.rpcUrl;
+      wsRpcInput.value = DEFAULT_CONFIG.wsUrl;
+      liveModeSelect.value = DEFAULT_CONFIG.liveMode;
+      sampleSizeSelect.value = String(DEFAULT_CONFIG.sampleSize);
+    });
+
+    settingsForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      config.rpcUrl = httpRpcInput.value.trim() || DEFAULT_CONFIG.rpcUrl;
+      config.wsUrl = wsRpcInput.value.trim();
+      config.liveMode = liveModeSelect.value;
+      config.sampleSize = Number(sampleSizeSelect.value) || 24;
+      saveConfig(config);
+
+      state.connection.rpcUrl = config.rpcUrl;
+      state.connection.wsUrl = config.wsUrl;
+      state.connection.liveMode = config.liveMode;
+      state.halving.sampledEpochNumber = null;
+
+      settingsDialog.close();
+      startTransport();
+    });
+
+    resyncBtn.addEventListener('click', () => {
+      fetchCanonicalTipAndHydrate(false);
+    });
+
+    // Diagnostic / Acceptance Verification Tools (Section 29)
+    function encodeEpochHex(numberBig, indexBig, lengthBig) {
+      const packed = (BigInt(lengthBig) << 40n) | (BigInt(indexBig) << 24n) | BigInt(numberBig);
+      return '0x' + packed.toString(16);
+    }
+
+    document.getElementById('testDropBtn').addEventListener('click', () => {
+      triggerNewBlockWaterEffect();
+      diagOutput.textContent = 'Triggered single block condensation droplet + meniscus ripple.';
+    });
+
+    document.getElementById('testBoundaryBtn').addEventListener('click', () => {
+      const baseEpoch = state.epoch.number || 15178n;
+      const finalHeader = {
+        hash: '0xdiag_final_' + Date.now(),
+        number: '0x' + ((state.chain.tipNumber || 20836000n) + 1n).toString(16),
+        timestamp: '0x' + BigInt(Date.now()).toString(16),
+        epoch: encodeEpochHex(baseEpoch, 1799n, 1800n)
+      };
+      applyNormalizedTip(normalizeHeader(finalHeader), { isInitialHydration: false, allowReorgSnap: true });
+
+      setTimeout(() => {
+        const nextHeader = {
+          hash: '0xdiag_next_' + Date.now(),
+          number: '0x' + ((state.chain.tipNumber || 20836001n) + 1n).toString(16),
+          timestamp: '0x' + BigInt(Date.now()).toString(16),
+          epoch: encodeEpochHex(baseEpoch + 1n, 0n, 1650n)
+        };
+        applyNormalizedTip(normalizeHeader(nextHeader), { isInitialHydration: false, allowReorgSnap: true });
+        diagOutput.textContent = `Rolled over Epoch ${baseEpoch} (1800/1800) → Epoch ${baseEpoch + 1n} (1/1650).`;
+      }, 450);
+    });
+
+    document.getElementById('testHalvingMathBtn').addEventListener('click', () => {
+      const cases = [
+        [8759n, 8760n],
+        [8760n, 17520n],
+        [17519n, 17520n],
+        [17520n, 26280n]
+      ];
+      const lines = cases.map(([inp, exp]) => {
+        const got = calculateNextHalvingEpoch(inp);
+        return `Epoch ${inp} → Next ${got} (${got === exp ? 'PASS' : 'FAIL'})`;
+      });
+      diagOutput.textContent = lines.join('\n');
+    });
+
+    document.getElementById('restoreLiveBtn').addEventListener('click', () => {
+      fetchCanonicalTipAndHydrate(true);
+      diagOutput.textContent = 'Resynchronized with canonical CKB mainnet tip.';
+    });
+
+    // Mobile Lifecycle Handlers (Section 23)
+    window.addEventListener('resize', updateCameraLayout);
+    window.addEventListener('orientationchange', () => setTimeout(updateCameraLayout, 120));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        fetchCanonicalTipAndHydrate(false);
+        if (state.connection.liveMode !== 'POLLING' && (!activeSocket || activeSocket.readyState !== WebSocket.OPEN)) {
+          startTransport();
+        }
+      }
+    });
+
+    // Startup Hydration & Live Transport
+    startTransport();
+  })();
+  </script>
+</body>
+</html>

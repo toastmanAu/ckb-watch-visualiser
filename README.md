@@ -55,18 +55,25 @@ Presents the live Nervos CKB blockchain as an **ocean-going pirate ship firing c
 | :---: | :---: | :---: |
 | <img src="screenshots/watch_pirate_overview.png" width="220" alt="Pirate Ship Overview" /> | <img src="screenshots/watch_pirate_volley.png" width="220" alt="Pirate Broadside Cannon Volley" /> | <img src="screenshots/watch_pirate_inspector.png" width="220" alt="Pirate Broadside Inspector" /> |
 
+### 7. Exhibition: CKB Halving & Live Epoch Water Vessel
+Visualizes the current variable-length **Nervos CKB Epoch** as a **3D borosilicate glass hydro-chronometer vessel filling with animated water** from a stationary bottom upward (`(epoch.index + 1) / epoch.length`), while continuously forecasting the **Next CKB Primary Issuance Halving (`8,760`-epoch interval)** using historical epoch pace sampling (`get_epoch_by_number` + `get_header_by_number` trimmed-mean duration with a 4-hour target fallback). Every new canonical block releases a condensation droplet from the top nozzle that splashes into the meniscus, triggers concentric wave ripples, and boosts rising micro-bubbles.
+
+| Live Epoch Water Vessel | New-Block Droplet & Meniscus Ripple | Halving & Epoch Pace Inspector |
+| :---: | :---: | :---: |
+| <img src="screenshots/watch_halving_overview.png" width="220" alt="Halving Vessel Overview" /> | <img src="screenshots/watch_halving_droplet.png" width="220" alt="Halving Vessel Droplet & Ripple" /> | <img src="screenshots/watch_halving_inspector.png" width="220" alt="Halving & Epoch Inspector" /> |
+
 ---
 
 ## 🌟 Core Architecture
 
 ### Dual-Engine Design
-1. **Native Wear OS 60 FPS Canvas & GLB Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`, `LegoTowerVisualiserView.kt`, `SharkRaftVisualiserView.kt`, `PirateShipVisualiserView.kt`):
+1. **Native Wear OS 60 FPS Canvas & GLB Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`, `LegoTowerVisualiserView.kt`, `SharkRaftVisualiserView.kt`, `PirateShipVisualiserView.kt`, `HalvingVesselVisualiserView.kt`):
    - Standard Android `WebView` is omitted on Wear OS devices to conserve RAM and storage.
    - We engineered a zero-overhead, hardware-accelerated native 2D/3D renderer running at a locked 60 FPS on the Pixel Watch 3 GPU, including a native binary glTF 2.0 (`.glb`) parser and skeletal/surflet renderer for `ToastmanAnim.glb` and `BoatAnimated.glb`.
    - Direct coroutine-based JSON-RPC streaming over Wi-Fi/Bluetooth proxy with minimal battery consumption.
-2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`, `bricks.html`, `sharks.html`, `pirate.html`):
+2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`, `bricks.html`, `sharks.html`, `pirate.html`, `halving.html`):
    - Standalone single-file HTML/CSS/JavaScript implementations.
-   - Procedural 3D geometry, `GLTFLoader` + `AnimationMixer` character and ship animation, custom GLSL Gerstner ocean shaders with local cannonball impact wave perturbations, `InstancedMesh` LEGO brick rendering, refractive Fresnel glass materials, hinged mechanical clockwork, and Web Audio API sound synthesis.
+   - Procedural 3D geometry, `GLTFLoader` + `AnimationMixer` character and ship animation, custom GLSL Gerstner ocean and hydro-vessel meniscus shaders, `InstancedMesh` LEGO brick rendering, refractive Fresnel glass materials, hinged mechanical clockwork, and Web Audio API sound synthesis.
    - Smooth museum-turntable auto-orbit with pinch-to-zoom and touch drag controls.
 
 ---
@@ -88,6 +95,8 @@ $$\text{newCellCount} = \sum_{\text{tx} \in \text{block.transactions}} \text{tx.
   - `epochNumber = epochRaw & 0xFFFFFF` (bits 0..23)
   - `epochIndex = (epochRaw >> 24) & 0xFFFF` (bits 24..39)
   - `epochLength = (epochRaw >> 40) & 0xFFFF` (bits 40..55)
+- **Primary Issuance Halving (`8,760` Epochs)**:
+  - $\text{nextHalvingEpoch} = \left(\lfloor\text{currentEpoch} / 8760\rfloor + 1\right) \times 8760$
 - **FIFO Block Event Queue**: Rapidly arriving blocks are queued and deduplicated by block hash so no block animation is ever dropped or overlapped.
 
 ---
@@ -120,6 +129,7 @@ watch-visualiser/
 ├── bricks.html                  # Epoch LEGO Brick Tower (Three.js Web Exhibit)
 ├── sharks.html                  # CKB Shark Raft (Three.js + GLTFLoader Web Exhibit)
 ├── pirate.html                  # CKB Pirate Broadside (Three.js + GLTFLoader Web Exhibit)
+├── halving.html                 # CKB Halving & Live Epoch Water Vessel (Three.js Web Exhibit)
 ├── ToastmanAnim.glb             # Supplied 3D Toastman character with Action animation
 ├── BoatAnimated.glb             # Supplied 3D Pirate Ship with Action animation & texture
 ├── three.min.js                 # Bundled Three.js engine for offline execution
@@ -141,9 +151,10 @@ watch-visualiser/
         │   ├── ckb-sharks/
         │   │   ├── index.html
         │   │   └── ToastmanAnim.glb
-        │   └── ckb-pirate/
-        │       ├── index.html
-        │       └── BoatAnimated.glb
+        │   ├── ckb-pirate/
+        │   │   ├── index.html
+        │   │   └── BoatAnimated.glb
+        │   └── ckb-halving/index.html
         ├── java/network/nervos/watchvisualiser/
         │   ├── MainActivity.kt        # Rotary-scrollable Wear OS Compose menu
         │   ├── VisualiserActivity.kt  # Native visualizer activity dispatcher & back pill
@@ -153,12 +164,13 @@ watch-visualiser/
         │   │   ├── VisualiserRegistry.kt # Extensible visualizer catalog
         │   │   └── AppPreferences.kt     # SharedPreferences store
         │   └── ui/
-        │       ├── LabVisualiserView.kt        # 60 FPS Native Cell Lab renderer
-        │       ├── BonsaiVisualiserView.kt     # 60 FPS Native Bonsai renderer
-        │       ├── CuckooVisualiserView.kt     # 60 FPS Native Cuckoo Clock renderer
-        │       ├── LegoTowerVisualiserView.kt  # 60 FPS Native Epoch Brick Tower renderer
-        │       ├── SharkRaftVisualiserView.kt  # 60 FPS Native Shark Raft & GLB renderer
-        │       └── PirateShipVisualiserView.kt # 60 FPS Native Pirate Broadside & GLB renderer
+        │       ├── LabVisualiserView.kt           # 60 FPS Native Cell Lab renderer
+        │       ├── BonsaiVisualiserView.kt        # 60 FPS Native Bonsai renderer
+        │       ├── CuckooVisualiserView.kt        # 60 FPS Native Cuckoo Clock renderer
+        │       ├── LegoTowerVisualiserView.kt     # 60 FPS Native Epoch Brick Tower renderer
+        │       ├── SharkRaftVisualiserView.kt     # 60 FPS Native Shark Raft & GLB renderer
+        │       ├── PirateShipVisualiserView.kt    # 60 FPS Native Pirate Broadside & GLB renderer
+        │       └── HalvingVesselVisualiserView.kt # 60 FPS Native Halving & Epoch Water Vessel
         └── res/                       # Vector drawables, colors, strings
 ```
 
@@ -178,6 +190,7 @@ Open in any browser:
 - **Epoch Brick Tower**: [http://localhost:8084/bricks.html](http://localhost:8084/bricks.html)
 - **CKB Shark Raft (`ToastmanAnim.glb`)**: [http://localhost:8084/sharks.html](http://localhost:8084/sharks.html)
 - **CKB Pirate Broadside (`BoatAnimated.glb`)**: [http://localhost:8084/pirate.html](http://localhost:8084/pirate.html)
+- **CKB Halving & Epoch Water Vessel**: [http://localhost:8084/halving.html](http://localhost:8084/halving.html)
 
 *Tip: Click the gear icon $\rightarrow$ **"TEST BLOCK"**, **"DEMO CUCKOO"**, **"DEMO NEW BLOCK"**, or **"SIMULATE"** to trigger an immediate CKB block event.*
 

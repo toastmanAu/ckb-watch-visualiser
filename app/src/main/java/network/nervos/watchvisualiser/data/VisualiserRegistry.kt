@@ -65,6 +65,15 @@ object VisualiserRegistry {
             isAvailable = true
         ),
         VisualiserInfo(
+            id = "ckb_halving",
+            title = "Halving Vessel",
+            subtitle = "3D glass water vessel tracking live CKB epoch fill & 8,760-epoch halving ETA",
+            badge = "ACTIVE",
+            iconRes = R.drawable.ic_halving,
+            assetPath = "file:///android_asset/visualisers/ckb-halving/index.html",
+            isAvailable = true
+        ),
+        VisualiserInfo(
             id = "fiber_network",
             title = "Fiber Network",
             subtitle = "Lightning-fast P2P state channels & peer routing topologies",
