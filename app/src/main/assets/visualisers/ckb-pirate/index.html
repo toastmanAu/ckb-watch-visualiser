@@ -1,0 +1,2271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>CKB Broadside — Live Nervos Transaction Pirate Ship Visualizer</title>
+  <style>
+    :root {
+      --bg-deep: #04101e;
+      --glass-bg: rgba(6, 18, 34, 0.78);
+      --glass-border: rgba(88, 215, 255, 0.28);
+      --accent-cyan: #38d9ff;
+      --accent-gold: #ffcf5c;
+      --accent-emerald: #00f59b;
+      --accent-amber: #ff9e44;
+      --accent-crimson: #ff5666;
+      --text-main: #f2f8ff;
+      --text-dim: #9ab8d4;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-deep);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      touch-action: none;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Minimal Persistent Maritime HUD */
+    .hud-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      width: 100%;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    .brand-card {
+      pointer-events: auto;
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 10px 14px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+      min-width: 205px;
+    }
+
+    .brand-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .brand-title {
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent-gold);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(0, 245, 155, 0.14);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(0, 245, 155, 0.35);
+    }
+
+    .status-pill.reconnecting {
+      background: rgba(255, 158, 68, 0.16);
+      color: var(--accent-amber);
+      border-color: rgba(255, 158, 68, 0.4);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .block-line {
+      font-family: var(--font-mono);
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 2px;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--accent-cyan);
+    }
+
+    .cellbase-badge {
+      font-size: 0.62rem;
+      padding: 1px 6px;
+      border-radius: 5px;
+      background: rgba(56, 217, 255, 0.14);
+      border: 1px solid rgba(56, 217, 255, 0.3);
+      color: var(--accent-cyan);
+      letter-spacing: 0.04em;
+    }
+
+    .volley-status {
+      margin-top: 6px;
+      padding-top: 5px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--accent-gold);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .queue-badge {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    .top-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .icon-btn {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      color: var(--text-main);
+      border-radius: 13px;
+      padding: 9px 12px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.38);
+      transition: transform 0.12s ease, border-color 0.15s ease;
+    }
+
+    .icon-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* Center New-Block Volley Banner */
+    .volley-banner {
+      align-self: center;
+      text-align: center;
+      background: rgba(5, 16, 30, 0.86);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 207, 92, 0.55);
+      border-radius: 18px;
+      padding: 12px 22px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 24px rgba(255, 207, 92, 0.2);
+      opacity: 0;
+      transform: translateY(-10px) scale(0.96);
+      transition: opacity 0.28s ease, transform 0.28s ease;
+      pointer-events: none;
+    }
+
+    .volley-banner.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .banner-kicker {
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      color: var(--accent-gold);
+      text-transform: uppercase;
+    }
+
+    .banner-block {
+      font-family: var(--font-mono);
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text-main);
+      margin: 2px 0;
+    }
+
+    .banner-shots {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--accent-emerald);
+    }
+
+    /* Bottom Start Voyage / Controls Bar */
+    .bottom-bar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+
+    .board-btn {
+      pointer-events: auto;
+      background: linear-gradient(135deg, rgba(255, 207, 92, 0.95), rgba(255, 150, 54, 0.95));
+      color: #061322;
+      border: none;
+      border-radius: 999px;
+      padding: 11px 22px;
+      font-family: var(--font-sans);
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 8px 26px rgba(255, 180, 60, 0.42);
+      transition: transform 0.15s ease, opacity 0.25s ease;
+    }
+
+    .board-btn.hidden {
+      display: none;
+    }
+
+    /* Native Light-Dismiss Settings Dialog */
+    dialog#settingsDialog {
+      margin: auto;
+      width: min(92vw, 410px);
+      background: rgba(6, 18, 34, 0.96);
+      color: var(--text-main);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.78);
+      font-family: var(--font-sans);
+    }
+
+    dialog#settingsDialog::backdrop {
+      background-color: rgba(2, 8, 18, 0.65);
+      backdrop-filter: blur(4px);
+    }
+
+    .dlg-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .dlg-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      color: var(--accent-gold);
+      text-transform: uppercase;
+    }
+
+    .dlg-close {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .field-group {
+      margin-bottom: 12px;
+    }
+
+    .field-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .rpc-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .text-input {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(88, 215, 255, 0.3);
+      border-radius: 10px;
+      padding: 8px 10px;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    .action-btn {
+      background: rgba(56, 217, 255, 0.18);
+      border: 1px solid rgba(56, 217, 255, 0.45);
+      color: var(--accent-cyan);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .seg-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .seg-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text-dim);
+      border-radius: 9px;
+      padding: 7px 6px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .seg-btn.active {
+      background: rgba(0, 245, 155, 0.18);
+      border-color: var(--accent-emerald);
+      color: var(--accent-emerald);
+    }
+
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 0.8rem;
+    }
+
+    .sim-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      margin-top: 6px;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <!-- Minimal Persistent Maritime UI -->
+  <div class="hud-layer">
+    <div class="top-bar">
+      <div class="brand-card">
+        <div class="brand-header">
+          <span class="brand-title">CKB BROADSIDE</span>
+          <span id="statusPill" class="status-pill">
+            <span class="status-dot"></span>
+            <span id="statusText">CONNECTING</span>
+          </span>
+        </div>
+        <div id="blockNumberText" class="block-line">BLOCK #—</div>
+        <div class="meta-row">
+          <span id="txCountText">— TX</span>
+          <span class="cellbase-badge">CELLBASE INCLUDED</span>
+        </div>
+        <div class="volley-status">
+          <span id="firingStatusText">WAITING FOR NEXT CKB BLOCK</span>
+          <span id="queueCountText" class="queue-badge"></span>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <button id="openSettingsBtn" class="icon-btn" type="button" aria-label="Open Settings">⚙ SETTINGS</button>
+        <button id="testVolleyBtn" class="icon-btn" type="button" title="Trigger a test cannon broadside">💥 TEST VOLLEY</button>
+      </div>
+    </div>
+
+    <div id="volleyBanner" class="volley-banner" role="status" aria-live="polite">
+      <div class="banner-kicker">NEW CKB BLOCK</div>
+      <div id="bannerBlockNum" class="banner-block">#—</div>
+      <div id="bannerShotsText" class="banner-shots">— TRANSACTIONS · — SHOTS</div>
+    </div>
+
+    <div class="bottom-bar">
+      <button id="startVoyageBtn" class="board-btn" type="button">⚓ START VOYAGE (ENABLE AUDIO)</button>
+    </div>
+  </div>
+
+  <!-- Native Modal Settings Dialog with Light-Dismiss (closedby="any") -->
+  <dialog id="settingsDialog" closedby="any" aria-labelledby="settingsTitle">
+    <div class="dlg-header">
+      <h2 id="settingsTitle" class="dlg-title">Broadside &amp; Node Settings</h2>
+      <button id="closeSettingsBtn" class="dlg-close" type="button">ESC</button>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label" for="rpcInput">Nervos CKB JSON-RPC Endpoint</label>
+      <div class="rpc-row">
+        <input id="rpcInput" class="text-input" type="url" value="https://mainnet.ckb.dev/" spellcheck="false" />
+        <button id="reconnectBtn" class="action-btn" type="button">CONNECT</button>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">Water &amp; Effects Quality</span>
+      <div class="seg-row" id="qualityGroup">
+        <button class="seg-btn" type="button" data-quality="LOW">LOW</button>
+        <button class="seg-btn active" type="button" data-quality="NORMAL">NORMAL</button>
+        <button class="seg-btn" type="button" data-quality="HIGH">HIGH</button>
+      </div>
+    </div>
+
+    <div class="toggle-row">
+      <span>Cannon &amp; Ocean Audio</span>
+      <input id="soundToggle" type="checkbox" checked />
+    </div>
+
+    <div class="toggle-row">
+      <span>Master Volume</span>
+      <input id="volumeSlider" type="range" min="0" max="1" step="0.05" value="0.75" />
+    </div>
+
+    <div class="toggle-row">
+      <span>Auto Return Camera Composition</span>
+      <input id="autoCamToggle" type="checkbox" checked />
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">Acceptance Test Volley Triggers</span>
+      <div class="sim-grid">
+        <button class="action-btn" type="button" data-sim="1">1 TX (CELLBASE)</button>
+        <button class="action-btn" type="button" data-sim="12">12 TX BROADSIDE</button>
+        <button class="action-btn" type="button" data-sim="24">24 TX BROADSIDE</button>
+        <button class="action-btn" type="button" id="simQueueBtn">QUEUE 20 TX + 6 TX</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    /* ==========================================================================
+     * 0. CONFIGURATION & QUALITY PRESETS
+     * ========================================================================== */
+    const CONFIG = {
+      defaultRpcUrl: 'https://mainnet.ckb.dev/',
+      pollIntervalMs: 3500,
+      targetShipLength: 8.8,
+      // Tunable waterline offset relative to normalized boat model bounds
+      boatWaterlineOffset: -1.08,
+      sailingSpeed: 2.35, // Forward sailing speed illusion (scrolling sea & wake)
+      windDirection: new THREE.Vector3(0.45, 0.08, 0.88).normalize(),
+      maxImpactWaves: 12
+    };
+
+    const QUALITY_PRESETS = {
+      LOW: {
+        oceanSegments: 96,
+        dprCap: 1.25,
+        bowSprayRate: 14,
+        wakeSpawnInterval: 0.11,
+        splashParticlesPerHit: 12,
+        dropletsPerHit: 10,
+        smokePuffsPerShot: 4
+      },
+      NORMAL: {
+        oceanSegments: 168,
+        dprCap: 1.75,
+        bowSprayRate: 30,
+        wakeSpawnInterval: 0.065,
+        splashParticlesPerHit: 22,
+        dropletsPerHit: 18,
+        smokePuffsPerShot: 7
+      },
+      HIGH: {
+        oceanSegments: 240,
+        dprCap: 2.0,
+        bowSprayRate: 48,
+        wakeSpawnInterval: 0.04,
+        splashParticlesPerHit: 34,
+        dropletsPerHit: 28,
+        smokePuffsPerShot: 11
+      }
+    };
+
+    let currentQuality = 'NORMAL';
+
+    /* ==========================================================================
+     * 1. SYNTHESIZED WEB AUDIO ENGINE (CANNON BLASTS & WATER SPLASHES)
+     * ========================================================================== */
+    class MaritimeAudioEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+        this.volume = 0.75;
+        this.noiseBuffer = null;
+      }
+
+      unlock() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (!AudioCtx) return;
+          this.ctx = new AudioCtx();
+          // Pre-generate 2 seconds of white noise for cannon blasts & splashes
+          const sr = this.ctx.sampleRate;
+          this.noiseBuffer = this.ctx.createBuffer(1, sr * 2, sr);
+          const data = this.noiseBuffer.getChannelData(0);
+          for (let i = 0; i < data.length; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playCannonBlast() {
+        if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+        const now = this.ctx.currentTime;
+        const masterGain = this.ctx.createGain();
+        masterGain.gain.setValueAtTime(this.volume * 0.55, now);
+        masterGain.connect(this.ctx.destination);
+
+        // 1. Low-frequency sub-bass cannon thump (115 Hz -> 32 Hz)
+        const osc = this.ctx.createOscillator();
+        const oscGain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(115 + Math.random() * 18, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.36);
+        oscGain.gain.setValueAtTime(0.95, now);
+        oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+        osc.connect(oscGain);
+        oscGain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.44);
+
+        // 2. Filtered explosive noise burst + reverberant tail
+        if (this.noiseBuffer) {
+          const src = this.ctx.createBufferSource();
+          src.buffer = this.noiseBuffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(950 + Math.random() * 250, now);
+          filter.frequency.exponentialRampToValueAtTime(140, now + 0.65);
+
+          const nGain = this.ctx.createGain();
+          nGain.gain.setValueAtTime(0.85, now);
+          nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.68);
+
+          src.connect(filter);
+          filter.connect(nGain);
+          nGain.connect(masterGain);
+          src.start(now);
+          src.stop(now + 0.7);
+        }
+      }
+
+      playWaterSplash() {
+        if (!this.enabled || !this.ctx || this.ctx.state !== 'running' || !this.noiseBuffer) return;
+        const now = this.ctx.currentTime;
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.noiseBuffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(620 + Math.random() * 240, now);
+        filter.Q.setValueAtTime(1.4, now);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.001, now);
+        gain.gain.linearRampToValueAtTime(this.volume * 0.24, now + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        src.start(now);
+        src.stop(now + 0.5);
+      }
+    }
+
+    /* ==========================================================================
+     * 2. LAYERED GERSTNER OCEAN & IMPACT DEFORMATION ENGINE
+     *    Shared CPU + GPU wave evaluation:
+     *    - getWaveHeight(x, z, time)
+     *    - getWaveNormal(x, z, time, outNormal)
+     * ========================================================================== */
+    const WAVE_COMPONENTS = [
+      // Primary swells (long wavelength, controls broad ship heave & pitch)
+      { dirX:  0.88, dirZ:  0.47, amp: 0.42, freq: 0.19, speed: 1.25, steep: 0.45 },
+      { dirX:  0.95, dirZ: -0.31, amp: 0.28, freq: 0.26, speed: 1.55, steep: 0.38 },
+      // Secondary waves (medium wavelength, creates rolling sea)
+      { dirX:  0.52, dirZ:  0.85, amp: 0.17, freq: 0.48, speed: 2.05, steep: 0.32 },
+      { dirX: -0.38, dirZ:  0.92, amp: 0.12, freq: 0.66, speed: 2.35, steep: 0.28 },
+      // Surface chop (short wavelength detail)
+      { dirX:  0.76, dirZ:  0.65, amp: 0.055, freq: 1.35, speed: 3.20, steep: 0.22 },
+      { dirX:  0.25, dirZ: -0.96, amp: 0.040, freq: 1.75, speed: 3.75, steep: 0.20 }
+    ];
+
+    class OceanSimulation {
+      constructor(scene) {
+        this.scene = scene;
+        this.scrollX = 0;
+        // Bounded array of 12 cannonball impact waves: { x, z, startTime, amp }
+        this.impacts = [];
+        for (let i = 0; i < CONFIG.maxImpactWaves; i++) {
+          this.impacts.push(new THREE.Vector4(0, 0, -999, 0));
+        }
+        this.impactCursor = 0;
+
+        this.uniforms = {
+          uTime: { value: 0 },
+          uScrollX: { value: 0 },
+          uSunDir: { value: new THREE.Vector3(-0.55, 0.48, -0.68).normalize() },
+          uImpacts: { value: this.impacts },
+          uMuzzlePos: { value: new THREE.Vector3(0, -100, 0) },
+          uMuzzleIntensity: { value: 0.0 }
+        };
+
+        this.mesh = null;
+        this.buildOceanMesh(QUALITY_PRESETS[currentQuality].oceanSegments);
+      }
+
+      buildOceanMesh(segments) {
+        if (this.mesh) {
+          this.scene.remove(this.mesh);
+          this.mesh.geometry.dispose();
+        }
+        const geo = new THREE.PlaneGeometry(150, 150, segments, segments);
+        geo.rotateX(-Math.PI / 2);
+
+        const mat = new THREE.ShaderMaterial({
+          uniforms: this.uniforms,
+          vertexShader: `
+            uniform float uTime;
+            uniform float uScrollX;
+            uniform vec4 uImpacts[12];
+
+            varying vec3 vWorldPos;
+            varying vec3 vNormal;
+            varying float vFoamFactor;
+
+            void main() {
+              vec3 pos = position;
+              float sx = pos.x + uScrollX;
+              float sz = pos.z;
+
+              float dy = 0.0;
+              float dx = 0.0;
+              float dz = 0.0;
+              float dHx = 0.0;
+              float dHz = 0.0;
+              float crestFoam = 0.0;
+
+              // 6-component layered Gerstner wave evaluation
+              vec2 dirs[6];
+              dirs[0] = vec2( 0.88,  0.47);
+              dirs[1] = vec2( 0.95, -0.31);
+              dirs[2] = vec2( 0.52,  0.85);
+              dirs[3] = vec2(-0.38,  0.92);
+              dirs[4] = vec2( 0.76,  0.65);
+              dirs[5] = vec2( 0.25, -0.96);
+
+              float amps[6];
+              amps[0] = 0.42; amps[1] = 0.28; amps[2] = 0.17;
+              amps[3] = 0.12; amps[4] = 0.055; amps[5] = 0.040;
+
+              float freqs[6];
+              freqs[0] = 0.19; freqs[1] = 0.26; freqs[2] = 0.48;
+              freqs[3] = 0.66; freqs[4] = 1.35; freqs[5] = 1.75;
+
+              float speeds[6];
+              speeds[0] = 1.25; speeds[1] = 1.55; speeds[2] = 2.05;
+              speeds[3] = 2.35; speeds[4] = 3.20; speeds[5] = 3.75;
+
+              float steeps[6];
+              steeps[0] = 0.45; steeps[1] = 0.38; steeps[2] = 0.32;
+              steeps[3] = 0.28; steeps[4] = 0.22; steeps[5] = 0.20;
+
+              for (int i = 0; i < 6; i++) {
+                float phase = (sx * dirs[i].x + sz * dirs[i].y) * freqs[i] + uTime * speeds[i];
+                float s = sin(phase);
+                float c = cos(phase);
+                dy += amps[i] * s;
+                dx -= dirs[i].x * (amps[i] * steeps[i]) * c;
+                dz -= dirs[i].y * (amps[i] * steeps[i]) * c;
+                dHx += dirs[i].x * amps[i] * freqs[i] * c;
+                dHz += dirs[i].y * amps[i] * freqs[i] * c;
+                if (i < 4) {
+                  crestFoam += max(0.0, s - 0.65) * amps[i];
+                }
+              }
+
+              // Bounded local cannonball impact wave rings
+              for (int j = 0; j < 12; j++) {
+                vec4 imp = uImpacts[j];
+                float age = uTime - imp.z;
+                if (age > 0.0 && age < 4.5 && imp.w > 0.001) {
+                  vec2 delta = pos.xz - imp.xy;
+                  float dist = length(delta);
+                  float ringRadius = age * 3.6;
+                  float band = exp(-pow(dist - ringRadius, 2.0) * 1.4);
+                  float decay = exp(-age * 0.85) * imp.w;
+                  float wave = sin((dist - ringRadius) * 5.5) * band * decay;
+                  dy += wave;
+                  if (dist > 0.01) {
+                    float grad = cos((dist - ringRadius) * 5.5) * 5.5 * band * decay;
+                    dHx += (delta.x / dist) * grad;
+                    dHz += (delta.y / dist) * grad;
+                  }
+                  crestFoam += band * decay * 1.8;
+                }
+              }
+
+              pos.x += dx;
+              pos.y += dy;
+              pos.z += dz;
+
+              vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
+              vWorldPos = worldPosition.xyz;
+              vNormal = normalize(vec3(-dHx, 1.0, -dHz));
+              vFoamFactor = clamp(crestFoam * 1.45, 0.0, 1.0);
+
+              gl_Position = projectionMatrix * viewMatrix * worldPosition;
+            }
+          `,
+          fragmentShader: `
+            uniform vec3 uSunDir;
+            uniform vec3 uMuzzlePos;
+            uniform float uMuzzleIntensity;
+
+            varying vec3 vWorldPos;
+            varying vec3 vNormal;
+            varying float vFoamFactor;
+
+            void main() {
+              vec3 N = normalize(vNormal);
+              vec3 V = normalize(cameraPosition - vWorldPos);
+              vec3 L = normalize(uSunDir);
+
+              // Fresnel term for sky reflection
+              float cosTheta = max(dot(N, V), 0.0);
+              float fresnel = pow(1.0 - cosTheta, 3.8);
+
+              // Deep maritime palette
+              vec3 deepColor = vec3(0.018, 0.095, 0.175);
+              vec3 shallowColor = vec3(0.045, 0.28, 0.38);
+              vec3 skyReflect = vec3(0.42, 0.62, 0.78);
+
+              // Subsurface crest glow when wave is high and backlit
+              float sss = clamp((vWorldPos.y + 0.35) * 0.55, 0.0, 1.0) * pow(max(0.0, dot(V, -L)), 2.0);
+              vec3 waterCol = mix(deepColor, shallowColor, clamp((vWorldPos.y + 0.5) * 0.55, 0.0, 1.0));
+              waterCol += vec3(0.04, 0.35, 0.36) * sss * 0.7;
+              waterCol = mix(waterCol, skyReflect, fresnel * 0.62);
+
+              // Sun specular highlight
+              vec3 H = normalize(L + V);
+              float spec = pow(max(dot(N, H), 0.0), 96.0);
+              waterCol += vec3(1.0, 0.86, 0.62) * spec * 0.85;
+
+              // Hull waterline proximity ambient foam
+              float hullBox = length(vec2(vWorldPos.x * 0.24, vWorldPos.z * 0.55));
+              float hullEdgeFoam = exp(-pow(hullBox - 0.92, 2.0) * 18.0) * 0.42;
+
+              // Combine wave crest foam + hull edge foam
+              float foam = clamp(vFoamFactor + hullEdgeFoam, 0.0, 1.0);
+              waterCol = mix(waterCol, vec3(0.92, 0.96, 1.0), foam * 0.75);
+
+              // Dynamic cannon muzzle flash reflection on water surface
+              if (uMuzzleIntensity > 0.01) {
+                vec3 toLight = uMuzzlePos - vWorldPos;
+                float distSq = dot(toLight, toLight);
+                float atten = uMuzzleIntensity / (1.0 + distSq * 0.14);
+                vec3 mDir = normalize(toLight);
+                float mDiff = max(dot(N, mDir), 0.0);
+                vec3 mHalf = normalize(mDir + V);
+                float mSpec = pow(max(dot(N, mHalf), 0.0), 28.0);
+                waterCol += vec3(1.0, 0.68, 0.25) * (mDiff * 0.65 + mSpec * 1.35) * atten;
+              }
+
+              // Distance horizon haze
+              float distCam = length(vWorldPos.xz);
+              float fog = smoothstep(38.0, 72.0, distCam);
+              vec3 horizonCol = vec3(0.16, 0.28, 0.42);
+              waterCol = mix(waterCol, horizonCol, fog);
+
+              gl_FragColor = vec4(waterCol, 1.0);
+            }
+          `
+        });
+
+        this.mesh = new THREE.Mesh(geo, mat);
+        this.mesh.receiveShadow = true;
+        this.scene.add(this.mesh);
+      }
+
+      addImpactWave(x, z, time, amplitude = 0.24) {
+        this.impacts[this.impactCursor].set(x, z, time, amplitude);
+        this.impactCursor = (this.impactCursor + 1) % CONFIG.maxImpactWaves;
+      }
+
+      /**
+       * Exact CPU counterpart of the vertex wave displacement so boat buoyancy
+       * and cannonball-water collisions match the rendered ocean surface.
+       */
+      getWaveHeight(x, z, time) {
+        const sx = x + this.scrollX;
+        const sz = z;
+        let dy = 0;
+
+        for (let i = 0; i < WAVE_COMPONENTS.length; i++) {
+          const w = WAVE_COMPONENTS[i];
+          const phase = (sx * w.dirX + sz * w.dirZ) * w.freq + time * w.speed;
+          dy += w.amp * Math.sin(phase);
+        }
+
+        for (let j = 0; j < CONFIG.maxImpactWaves; j++) {
+          const imp = this.impacts[j];
+          const age = time - imp.z;
+          if (age > 0 && age < 4.5 && imp.w > 0.001) {
+            const dx = x - imp.x;
+            const dz = z - imp.y;
+            const dist = Math.hypot(dx, dz);
+            const ringRadius = age * 3.6;
+            const dR = dist - ringRadius;
+            const band = Math.exp(-dR * dR * 1.4);
+            const decay = Math.exp(-age * 0.85) * imp.w;
+            dy += Math.sin(dR * 5.5) * band * decay;
+          }
+        }
+        return dy;
+      }
+
+      getWaveNormal(x, z, time, outNormal = new THREE.Vector3()) {
+        const sx = x + this.scrollX;
+        const sz = z;
+        let dHx = 0;
+        let dHz = 0;
+
+        for (let i = 0; i < WAVE_COMPONENTS.length; i++) {
+          const w = WAVE_COMPONENTS[i];
+          const phase = (sx * w.dirX + sz * w.dirZ) * w.freq + time * w.speed;
+          const c = Math.cos(phase);
+          dHx += w.dirX * w.amp * w.freq * c;
+          dHz += w.dirZ * w.amp * w.freq * c;
+        }
+        return outNormal.set(-dHx, 1.0, -dHz).normalize();
+      }
+
+      update(dt, elapsed) {
+        this.scrollX += CONFIG.sailingSpeed * dt;
+        this.uniforms.uTime.value = elapsed;
+        this.uniforms.uScrollX.value = this.scrollX;
+      }
+    }
+
+    /* ==========================================================================
+     * 3. SUPPLIED BOAT CONTROLLER (`BoatAnimated.glb`)
+     *    Hierarchy:
+     *    - BoatFloatRoot (wave heave, pitch, roll + damped cannon recoil)
+     *      └── BoatAnimatedRoot (GLTFLoader model + subtle Action clip mixer)
+     *      └── 8 Broadside Cannon Emitter Object3Ds
+     * ========================================================================== */
+    class PirateBoatController {
+      constructor(scene, ocean) {
+        this.scene = scene;
+        this.ocean = ocean;
+
+        this.boatFloatRoot = new THREE.Group();
+        this.boatAnimatedRoot = new THREE.Group();
+        this.boatFloatRoot.add(this.boatAnimatedRoot);
+        this.scene.add(this.boatFloatRoot);
+
+        this.mixer = null;
+        this.boneBottom = null;
+        this.emitters = [];
+
+        // Smoothed wave-following state
+        this.currentHeave = 0;
+        this.currentPitch = 0;
+        this.currentRoll = 0;
+
+        // Separate temporary cannon recoil state (never corrupts wave state)
+        this.recoilRoll = 0;
+        this.recoilRollVel = 0;
+        this.recoilSwayZ = 0;
+        this.recoilSwayVel = 0;
+
+        // Normalized hull dimensions for bow/stern/port/starboard sampling
+        this.halfLength = 3.6;
+        this.halfBeam = 1.45;
+      }
+
+      async loadBoatGlb(url = './BoatAnimated.glb') {
+        const loader = new GLTFLoader();
+        return new Promise((resolve, reject) => {
+          loader.load(
+            url,
+            (gltf) => {
+              const model = gltf.scene;
+
+              // Ensure readable materials and shadow casting on the supplied boat
+              model.traverse((child) => {
+                if (child.isMesh) {
+                  child.castShadow = true;
+                  child.receiveShadow = true;
+                  if (child.material) {
+                    const origMat = child.material;
+                    const tex = origMat.map || null;
+                    if (tex) {
+                      tex.colorSpace = THREE.SRGBColorSpace;
+                    }
+                    child.material = new THREE.MeshStandardMaterial({
+                      map: tex,
+                      color: 0xffffff,
+                      roughness: 0.52,
+                      metalness: 0.08,
+                      emissive: 0xffffff,
+                      emissiveMap: tex,
+                      emissiveIntensity: 0.14,
+                      side: THREE.DoubleSide
+                    });
+                  }
+                }
+              });
+
+              // 1. Compute THREE.Box3 and bounding sphere on raw loaded geometry
+              model.updateMatrixWorld(true);
+              const rawBox = new THREE.Box3().setFromObject(model);
+              const rawSphere = new THREE.Sphere();
+              rawBox.getBoundingSphere(rawSphere);
+
+              const rawSize = new THREE.Vector3();
+              const rawCenter = new THREE.Vector3();
+              rawBox.getSize(rawSize);
+              rawBox.getCenter(rawCenter);
+
+              // 2. Normalize scale so long axis matches CONFIG.targetShipLength
+              const maxSpan = Math.max(rawSize.x, rawSize.y, rawSize.z, 0.001);
+              const scaleFactor = CONFIG.targetShipLength / maxSpan;
+              model.scale.setScalar(scaleFactor);
+
+              // 3. Center horizontally and apply configurable waterline offset
+              model.position.set(
+                -rawCenter.x * scaleFactor,
+                -rawBox.min.y * scaleFactor + CONFIG.boatWaterlineOffset,
+                -rawCenter.z * scaleFactor
+              );
+
+              this.halfLength = (rawSize.x * scaleFactor) * 0.42;
+              this.halfBeam = (rawSize.z * scaleFactor) * 0.46;
+
+              this.boatAnimatedRoot.add(model);
+
+              // 4. Inspect & attach embedded `Action` clip at subtle weight so ocean remains authoritative
+              this.boneBottom = model.getObjectByName('BoneBottom');
+              this.boneBottomBindPos = this.boneBottom ? this.boneBottom.position.clone() : new THREE.Vector3();
+              this.boneBottomBindQuat = this.boneBottom ? this.boneBottom.quaternion.clone() : new THREE.Quaternion();
+
+              if (gltf.animations && gltf.animations.length > 0) {
+                this.mixer = new THREE.AnimationMixer(model);
+                const actionClip = THREE.AnimationClip.findByName(gltf.animations, 'Action') || gltf.animations[0];
+                const action = this.mixer.clipAction(actionClip);
+                action.setEffectiveWeight(0.08);
+                action.play();
+              }
+
+              // 5. Create 8 broadside cannon emitter anchors attached to BoatFloatRoot
+              this.createBroadsideEmitters(rawSize, scaleFactor);
+
+              resolve(gltf);
+            },
+            undefined,
+            (err) => reject(err)
+          );
+        });
+      }
+
+      createBroadsideEmitters(rawSize, scaleFactor) {
+        const count = 8;
+        const spanX = rawSize.x * scaleFactor * 0.54;
+        const hullZ = rawSize.z * scaleFactor * 0.44;
+        const deckY = 0.72; // Above waterline along hull broadside
+
+        const barrelGeo = new THREE.CylinderGeometry(0.065, 0.085, 0.42, 10);
+        barrelGeo.rotateX(Math.PI / 2);
+        const barrelMat = new THREE.MeshStandardMaterial({
+          color: 0x2a2f37,
+          metalness: 0.75,
+          roughness: 0.35
+        });
+
+        for (let i = 0; i < count; i++) {
+          const t = i / (count - 1);
+          // +X is bow, -X is stern (index 0 = bow emitter, index 7 = stern emitter)
+          const xPos = spanX * 0.5 - t * spanX;
+          const yCurve = deckY + Math.pow((t - 0.5) * 2.0, 2.0) * 0.14;
+
+          const emitter = new THREE.Object3D();
+          emitter.position.set(xPos, yCurve, hullZ);
+          this.boatFloatRoot.add(emitter);
+          this.emitters.push(emitter);
+
+          // Subtle cannon muzzle tip at emitter anchor
+          const barrel = new THREE.Mesh(barrelGeo, barrelMat);
+          barrel.position.set(0, 0, -0.08);
+          barrel.castShadow = true;
+          emitter.add(barrel);
+        }
+      }
+
+      addRecoilImpulse() {
+        // Firing out of +Z starboard side pushes top of ship toward -Z (negative roll around X)
+        this.recoilRollVel -= 0.065;
+        this.recoilSwayVel -= 0.18;
+      }
+
+      update(dt, elapsed) {
+        // 1. Update subtle embedded GLB animation while preventing BoneBottom root wandering
+        if (this.mixer) {
+          this.mixer.update(dt);
+          if (this.boneBottom) {
+            this.boneBottom.position.x = this.boneBottomBindPos.x;
+            this.boneBottom.position.z = this.boneBottomBindPos.z;
+            this.boneBottom.quaternion.copy(this.boneBottomBindQuat);
+          }
+        }
+
+        // 2. Sample ocean heights at center, bow (+X), stern (-X), port (-Z), starboard (+Z)
+        const hCenter = this.ocean.getWaveHeight(0, 0, elapsed);
+        const hBow = this.ocean.getWaveHeight(this.halfLength, 0, elapsed);
+        const hStern = this.ocean.getWaveHeight(-this.halfLength, 0, elapsed);
+        const hPort = this.ocean.getWaveHeight(0, -this.halfBeam, elapsed);
+        const hStarboard = this.ocean.getWaveHeight(0, this.halfBeam, elapsed);
+
+        const targetHeave = (hCenter * 0.5 + (hBow + hStern) * 0.25);
+        // When bow (+X) is higher than stern (-X), positive rotation around Z lifts +X
+        const targetPitch = Math.atan2(hBow - hStern, this.halfLength * 2.0) * 0.78;
+        // Restrained side-to-side roll around X axis
+        const targetRoll = Math.atan2(hPort - hStarboard, this.halfBeam * 2.0) * 0.52;
+
+        const smooth = 1.0 - Math.exp(-dt * 5.5);
+        this.currentHeave += (targetHeave - this.currentHeave) * smooth;
+        this.currentPitch += (targetPitch - this.currentPitch) * smooth;
+        this.currentRoll += (targetRoll - this.currentRoll) * smooth;
+
+        // 3. Update damped cannon recoil spring
+        this.recoilRollVel += (-this.recoilRoll * 18.0 - this.recoilRollVel * 5.2) * dt;
+        this.recoilRoll += this.recoilRollVel * dt;
+
+        this.recoilSwayVel += (-this.recoilSwayZ * 14.0 - this.recoilSwayVel * 4.8) * dt;
+        this.recoilSwayZ += this.recoilSwayVel * dt;
+
+        // 4. Apply combined transform cleanly onto BoatFloatRoot
+        this.boatFloatRoot.position.set(0, this.currentHeave, this.recoilSwayZ);
+        this.boatFloatRoot.rotation.set(
+          this.currentRoll + this.recoilRoll,
+          0,
+          this.currentPitch
+        );
+
+        // Return bow immersion depth for dynamic bow spray scaling
+        const bowWorldY = this.currentHeave + Math.sin(this.currentPitch) * this.halfLength;
+        return hBow - bowWorldY;
+      }
+    }
+
+    /* ==========================================================================
+     * 4. POOLED WAKE, BOW SPRAY, CANNON SMOKE & WATER IMPACT EFFECTS
+     * ========================================================================== */
+    class MaritimeEffectsManager {
+      constructor(scene, ocean, audio) {
+        this.scene = scene;
+        this.ocean = ocean;
+        this.audio = audio;
+
+        // Temporary muzzle flash PointLight
+        this.muzzleLight = new THREE.PointLight(0xffa838, 0, 16, 1.6);
+        this.scene.add(this.muzzleLight);
+        this.muzzleLightTimer = 0;
+
+        this._initWakePool();
+        this._initBowSprayPool();
+        this._initSmokePool();
+        this._initCannonballPool();
+        this._initSplashAndDropletPools();
+        this._initImpactRingPools();
+
+        this.wakeTimer = 0;
+        this.sprayAccumulator = 0;
+        this.tmpVec = new THREE.Vector3();
+        this.tmpNormal = new THREE.Vector3();
+        this.tmpQuat = new THREE.Quaternion();
+        this.upVec = new THREE.Vector3(0, 1, 0);
+      }
+
+      /* --- 4A. Persistent V-Shaped Ship Wake & Hull Foam Pool --- */
+      _initWakePool() {
+        this.maxWake = 110;
+        this.wakeItems = [];
+        const geo = new THREE.PlaneGeometry(1, 1);
+        geo.rotateX(-Math.PI / 2);
+
+        // Procedural radial foam texture
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+        grad.addColorStop(0, 'rgba(240, 250, 255, 0.85)');
+        grad.addColorStop(0.55, 'rgba(190, 235, 250, 0.42)');
+        grad.addColorStop(1, 'rgba(140, 210, 240, 0.0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 64, 64);
+        this.foamTexture = new THREE.CanvasTexture(canvas);
+
+        for (let i = 0; i < this.maxWake; i++) {
+          const mat = new THREE.MeshBasicMaterial({
+            map: this.foamTexture,
+            transparent: true,
+            depthWrite: false,
+            opacity: 0
+          });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.visible = false;
+          this.scene.add(mesh);
+          this.wakeItems.push({
+            mesh,
+            active: false,
+            age: 0,
+            maxAge: 5.5,
+            vx: 0,
+            vz: 0,
+            startScale: 1,
+            endScale: 3.5
+          });
+        }
+        this.wakeCursor = 0;
+      }
+
+      spawnWakePatch(x, z, vx, vz, startScale, endScale, maxAge = 5.2) {
+        const item = this.wakeItems[this.wakeCursor];
+        this.wakeCursor = (this.wakeCursor + 1) % this.maxWake;
+        item.active = true;
+        item.age = 0;
+        item.maxAge = maxAge;
+        item.vx = vx;
+        item.vz = vz;
+        item.startScale = startScale;
+        item.endScale = endScale;
+        item.mesh.position.set(x, 0.05, z);
+        item.mesh.rotation.y = Math.random() * Math.PI * 2;
+        item.mesh.visible = true;
+      }
+
+      /* --- 4B. Pooled Bow Spray Particles --- */
+      _initBowSprayPool() {
+        this.maxSpray = 160;
+        this.sprayItems = [];
+        const geo = new THREE.SphereGeometry(0.075, 5, 5);
+        const mat = new THREE.MeshBasicMaterial({
+          color: 0xeaf8ff,
+          transparent: true,
+          opacity: 0.82
+        });
+        for (let i = 0; i < this.maxSpray; i++) {
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.visible = false;
+          this.scene.add(mesh);
+          this.sprayItems.push({
+            mesh,
+            active: false,
+            age: 0,
+            maxAge: 0.9,
+            vel: new THREE.Vector3()
+          });
+        }
+        this.sprayCursor = 0;
+      }
+
+      spawnBowSprayParticle(bowX, bowY, bowZ, intensity) {
+        const item = this.sprayItems[this.sprayCursor];
+        this.sprayCursor = (this.sprayCursor + 1) % this.maxSpray;
+        item.active = true;
+        item.age = 0;
+        item.maxAge = 0.65 + Math.random() * 0.45;
+        const side = Math.random() < 0.65 ? 1 : -1;
+        item.mesh.position.set(
+          bowX + (Math.random() - 0.5) * 0.9,
+          bowY + 0.15,
+          bowZ + side * (0.25 + Math.random() * 0.45)
+        );
+        item.vel.set(
+          -CONFIG.sailingSpeed * (0.4 + Math.random() * 0.5),
+          2.2 + intensity * 1.8 + Math.random() * 1.6,
+          side * (1.2 + Math.random() * 1.6)
+        );
+        item.mesh.scale.setScalar(0.7 + Math.random() * 0.7);
+        item.mesh.visible = true;
+      }
+
+      /* --- 4C. World-Space Cannon Smoke & Muzzle Flash Pool --- */
+      _initSmokePool() {
+        this.maxSmoke = 140;
+        this.smokeItems = [];
+        const geo = new THREE.SphereGeometry(0.28, 7, 7);
+        for (let i = 0; i < this.maxSmoke; i++) {
+          const mat = new THREE.MeshLambertMaterial({
+            color: 0xd8dfe8,
+            emissive: 0x22262c,
+            transparent: true,
+            depthWrite: false,
+            opacity: 0
+          });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.visible = false;
+          this.scene.add(mesh);
+          this.smokeItems.push({
+            mesh,
+            active: false,
+            age: 0,
+            maxAge: 3.2,
+            vel: new THREE.Vector3(),
+            startScale: 0.6,
+            endScale: 3.2
+          });
+        }
+        this.smokeCursor = 0;
+      }
+
+      spawnMuzzleSmokeAndFlash(worldOrigin, worldDir) {
+        // Position & trigger temporary muzzle flash PointLight
+        this.muzzleLight.position.copy(worldOrigin).addScaledVector(worldDir, 0.45);
+        this.muzzleLight.intensity = 12.0;
+        this.muzzleLightTimer = 0.095; // ~95 ms flash
+        this.ocean.uniforms.uMuzzlePos.value.copy(this.muzzleLight.position);
+        this.ocean.uniforms.uMuzzleIntensity.value = 1.6;
+
+        // Bright instantaneous muzzle flash puff
+        const flashItem = this.smokeItems[this.smokeCursor];
+        this.smokeCursor = (this.smokeCursor + 1) % this.maxSmoke;
+        flashItem.active = true;
+        flashItem.age = 0;
+        flashItem.maxAge = 0.14;
+        flashItem.mesh.position.copy(worldOrigin).addScaledVector(worldDir, 0.25);
+        flashItem.vel.copy(worldDir).multiplyScalar(3.2);
+        flashItem.startScale = 0.85;
+        flashItem.endScale = 1.85;
+        flashItem.mesh.material.color.setHex(0xffd27a);
+        flashItem.mesh.material.emissive.setHex(0xff7b1c);
+        flashItem.mesh.visible = true;
+
+        // Drifting world-space cannon smoke puffs
+        const puffCount = QUALITY_PRESETS[currentQuality].smokePuffsPerShot;
+        for (let i = 0; i < puffCount; i++) {
+          const item = this.smokeItems[this.smokeCursor];
+          this.smokeCursor = (this.smokeCursor + 1) % this.maxSmoke;
+          item.active = true;
+          item.age = 0;
+          item.maxAge = 2.4 + Math.random() * 1.5;
+          item.mesh.position.copy(worldOrigin).add(
+            new THREE.Vector3(
+              (Math.random() - 0.5) * 0.3,
+              (Math.random() - 0.5) * 0.2,
+              Math.random() * 0.35
+            )
+          );
+          item.vel.copy(worldDir).multiplyScalar(1.8 + Math.random() * 2.2)
+            .addScaledVector(CONFIG.windDirection, 1.1 + Math.random() * 0.8);
+          item.vel.y += 0.45 + Math.random() * 0.55;
+          item.startScale = 0.45 + Math.random() * 0.35;
+          item.endScale = 2.4 + Math.random() * 1.4;
+          const shade = 0.78 + Math.random() * 0.18;
+          item.mesh.material.color.setRGB(shade, shade * 1.01, shade * 1.03);
+          item.mesh.material.emissive.setHex(0x1b222c);
+          item.mesh.visible = true;
+        }
+      }
+
+      /* --- 4D. Pooled World-Space Cannonballs --- */
+      _initCannonballPool() {
+        this.maxBalls = 64;
+        this.balls = [];
+        const geo = new THREE.SphereGeometry(0.14, 10, 10);
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0x1c2026,
+          metalness: 0.85,
+          roughness: 0.28
+        });
+        for (let i = 0; i < this.maxBalls; i++) {
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.castShadow = true;
+          mesh.visible = false;
+          this.scene.add(mesh);
+          this.balls.push({
+            mesh,
+            active: false,
+            vel: new THREE.Vector3()
+          });
+        }
+        this.ballCursor = 0;
+      }
+
+      fireCannonFromEmitter(emitter) {
+        const worldOrigin = new THREE.Vector3();
+        emitter.getWorldPosition(worldOrigin);
+
+        // Outward direction along starboard broadside (+Z) with slight spread
+        const spreadX = (Math.random() - 0.5) * 0.28;
+        const worldDir = new THREE.Vector3(spreadX, 0.26 + Math.random() * 0.14, 1.0).normalize();
+
+        // 1. Muzzle flash, point light & world-space smoke
+        this.spawnMuzzleSmokeAndFlash(worldOrigin, worldDir);
+
+        // 2. Spawn world-space ballistic cannonball (flight time ~1.2 - 2.1s)
+        const ball = this.balls[this.ballCursor];
+        this.ballCursor = (this.ballCursor + 1) % this.maxBalls;
+        ball.active = true;
+        ball.mesh.position.copy(worldOrigin).addScaledVector(worldDir, 0.25);
+
+        const speed = 7.4 + Math.random() * 3.8;
+        ball.vel.set(
+          worldDir.x * speed + (Math.random() - 0.5) * 1.2,
+          4.2 + Math.random() * 2.4,
+          worldDir.z * speed
+        );
+        ball.mesh.visible = true;
+
+        this.audio.playCannonBlast();
+      }
+
+      /* --- 4E. Pooled Water Splash Columns & Radial Droplets --- */
+      _initSplashAndDropletPools() {
+        // Tapered vertical splash column cones
+        this.maxPlumes = 40;
+        this.plumes = [];
+        const plumeGeo = new THREE.ConeGeometry(0.42, 2.6, 9, 1, true);
+        plumeGeo.translate(0, 1.3, 0);
+        for (let i = 0; i < this.maxPlumes; i++) {
+          const mat = new THREE.MeshBasicMaterial({
+            color: 0xf2fbff,
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            opacity: 0
+          });
+          const mesh = new THREE.Mesh(plumeGeo, mat);
+          mesh.visible = false;
+          this.scene.add(mesh);
+          this.plumes.push({
+            mesh,
+            active: false,
+            age: 0,
+            maxAge: 0.85,
+            maxHeight: 1.0
+          });
+        }
+        this.plumeCursor = 0;
+
+        // Pooled radial impact droplets & upward spray particles
+        this.maxDroplets = 320;
+        this.droplets = [];
+        const dropGeo = new THREE.SphereGeometry(0.085, 5, 5);
+        const dropMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.9
+        });
+        for (let i = 0; i < this.maxDroplets; i++) {
+          const mesh = new THREE.Mesh(dropGeo, dropMat);
+          mesh.visible = false;
+          this.scene.add(mesh);
+          this.droplets.push({
+            mesh,
+            active: false,
+            age: 0,
+            maxAge: 1.3,
+            vel: new THREE.Vector3()
+          });
+        }
+        this.dropletCursor = 0;
+      }
+
+      /* --- 4F. Pooled Normal-Aligned Foam Rings & Broader Ripples --- */
+      _initImpactRingPools() {
+        this.maxRings = 48;
+        this.rings = [];
+        const ringGeo = new THREE.RingGeometry(0.32, 0.52, 24);
+        ringGeo.rotateX(-Math.PI / 2);
+
+        for (let i = 0; i < this.maxRings; i++) {
+          const mat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            opacity: 0
+          });
+          const mesh = new THREE.Mesh(ringGeo, mat);
+          mesh.visible = false;
+          this.scene.add(mesh);
+          this.rings.push({
+            mesh,
+            active: false,
+            age: 0,
+            maxAge: 2.2,
+            startScale: 0.5,
+            endScale: 4.5,
+            baseAlpha: 0.85
+          });
+        }
+        this.ringCursor = 0;
+      }
+
+      triggerWaterImpact(x, waterY, z, elapsed) {
+        // 1. Deform ocean shader locally at impact point
+        this.ocean.addImpactWave(x, z, elapsed, 0.26);
+        this.audio.playWaterSplash();
+
+        // 2. Vertical Splash Plume Column
+        const plume = this.plumes[this.plumeCursor];
+        this.plumeCursor = (this.plumeCursor + 1) % this.maxPlumes;
+        plume.active = true;
+        plume.age = 0;
+        plume.maxAge = 0.78 + Math.random() * 0.22;
+        plume.maxHeight = 0.95 + Math.random() * 0.45;
+        plume.mesh.position.set(x, waterY - 0.1, z);
+        plume.mesh.rotation.y = Math.random() * Math.PI * 2;
+        plume.mesh.visible = true;
+
+        // 3. Upward Splash Burst + Radial Droplets
+        const preset = QUALITY_PRESETS[currentQuality];
+        const totalDrops = preset.splashParticlesPerHit + preset.dropletsPerHit;
+        for (let i = 0; i < totalDrops; i++) {
+          const d = this.droplets[this.dropletCursor];
+          this.dropletCursor = (this.dropletCursor + 1) % this.maxDroplets;
+          d.active = true;
+          d.age = 0;
+          d.maxAge = 0.85 + Math.random() * 0.65;
+          d.mesh.position.set(
+            x + (Math.random() - 0.5) * 0.35,
+            waterY + 0.08,
+            z + (Math.random() - 0.5) * 0.35
+          );
+          const angle = Math.random() * Math.PI * 2;
+          const isCoreColumn = i < preset.splashParticlesPerHit;
+          const radialSpeed = isCoreColumn
+            ? 0.4 + Math.random() * 1.4
+            : 1.8 + Math.random() * 3.4;
+          const upSpeed = isCoreColumn
+            ? 4.8 + Math.random() * 3.8
+            : 2.6 + Math.random() * 2.8;
+          d.vel.set(
+            Math.cos(angle) * radialSpeed,
+            upSpeed,
+            Math.sin(angle) * radialSpeed
+          );
+          d.mesh.scale.setScalar(isCoreColumn ? 1.15 : 0.75);
+          d.mesh.visible = true;
+        }
+
+        // 4. Normal-aligned inner white foam ring + broader outer ripple ring
+        this.ocean.getWaveNormal(x, z, elapsed, this.tmpNormal);
+        this.tmpQuat.setFromUnitVectors(this.upVec, this.tmpNormal);
+
+        // Inner bright foam ring
+        const foamRing = this.rings[this.ringCursor];
+        this.ringCursor = (this.ringCursor + 1) % this.maxRings;
+        foamRing.active = true;
+        foamRing.age = 0;
+        foamRing.maxAge = 1.65;
+        foamRing.startScale = 0.45;
+        foamRing.endScale = 3.4;
+        foamRing.baseAlpha = 0.92;
+        foamRing.mesh.material.color.setHex(0xf4fcff);
+        foamRing.mesh.position.set(x, waterY + 0.05, z);
+        foamRing.mesh.quaternion.copy(this.tmpQuat);
+        foamRing.mesh.visible = true;
+
+        // Broader long-lived outer ripple ring
+        const rippleRing = this.rings[this.ringCursor];
+        this.ringCursor = (this.ringCursor + 1) % this.maxRings;
+        rippleRing.active = true;
+        rippleRing.age = 0;
+        rippleRing.maxAge = 3.1;
+        rippleRing.startScale = 0.7;
+        rippleRing.endScale = 6.8;
+        rippleRing.baseAlpha = 0.52;
+        rippleRing.mesh.material.color.setHex(0x7ee2ff);
+        rippleRing.mesh.position.set(x, waterY + 0.03, z);
+        rippleRing.mesh.quaternion.copy(this.tmpQuat);
+        rippleRing.mesh.visible = true;
+      }
+
+      update(dt, elapsed, bowImmersion, boatController) {
+        const preset = QUALITY_PRESETS[currentQuality];
+
+        // 1. Decay temporary muzzle PointLight
+        if (this.muzzleLightTimer > 0) {
+          this.muzzleLightTimer -= dt;
+          const ratio = Math.max(0, this.muzzleLightTimer / 0.095);
+          this.muzzleLight.intensity = 12.0 * ratio;
+          this.ocean.uniforms.uMuzzleIntensity.value = 1.6 * ratio;
+        } else {
+          this.muzzleLight.intensity = 0;
+          this.ocean.uniforms.uMuzzleIntensity.value = 0;
+        }
+
+        // 2. Spawn V-shaped wake behind ship (+X is bow, -X is stern)
+        this.wakeTimer += dt;
+        if (this.wakeTimer >= preset.wakeSpawnInterval) {
+          this.wakeTimer = 0;
+          const sternX = -boatController.halfLength * 0.95;
+          // Central churned wake trail drifting toward -X
+          this.spawnWakePatch(
+            sternX,
+            (Math.random() - 0.5) * 0.4,
+            -CONFIG.sailingSpeed * 1.05,
+            (Math.random() - 0.5) * 0.25,
+            1.1,
+            3.8,
+            5.2
+          );
+          // Port and Starboard V-wake arms originating from bow shoulders (+X)
+          for (const side of [-1, 1]) {
+            this.spawnWakePatch(
+              boatController.halfLength * 0.55,
+              side * (boatController.halfBeam * 0.82),
+              -CONFIG.sailingSpeed * 0.98,
+              side * (0.58 + Math.random() * 0.22),
+              0.75,
+              3.2,
+              4.6
+            );
+          }
+        }
+
+        // Update active wake patches (follow wave height as they drift back)
+        for (let i = 0; i < this.maxWake; i++) {
+          const w = this.wakeItems[i];
+          if (!w.active) continue;
+          w.age += dt;
+          if (w.age >= w.maxAge) {
+            w.active = false;
+            w.mesh.visible = false;
+            continue;
+          }
+          const p = w.age / w.maxAge;
+          w.mesh.position.x += w.vx * dt;
+          w.mesh.position.z += w.vz * dt;
+          w.mesh.position.y = this.ocean.getWaveHeight(w.mesh.position.x, w.mesh.position.z, elapsed) + 0.04;
+          const sc = w.startScale + (w.endScale - w.startScale) * p;
+          w.mesh.scale.set(sc * 1.35, 1, sc);
+          w.mesh.material.opacity = Math.sin(Math.min(1, p * 4.0) * Math.PI * 0.5) * Math.pow(1.0 - p, 1.6) * 0.62;
+        }
+
+        // 3. Emit bow spray at +X (under figurehead) scaled by bow wave immersion
+        const immersionFactor = Math.max(0.18, Math.min(2.4, 0.55 + bowImmersion * 2.2));
+        this.sprayAccumulator += preset.bowSprayRate * immersionFactor * dt;
+        const bowX = boatController.halfLength * 0.96;
+        const bowY = this.ocean.getWaveHeight(bowX, 0, elapsed);
+        while (this.sprayAccumulator >= 1.0) {
+          this.sprayAccumulator -= 1.0;
+          this.spawnBowSprayParticle(bowX, bowY, 0, immersionFactor);
+        }
+
+        for (let i = 0; i < this.maxSpray; i++) {
+          const s = this.sprayItems[i];
+          if (!s.active) continue;
+          s.age += dt;
+          if (s.age >= s.maxAge) {
+            s.active = false;
+            s.mesh.visible = false;
+            continue;
+          }
+          s.vel.y -= 9.2 * dt;
+          s.mesh.position.addScaledVector(s.vel, dt);
+          const waterY = this.ocean.getWaveHeight(s.mesh.position.x, s.mesh.position.z, elapsed);
+          if (s.age > 0.15 && s.mesh.position.y <= waterY) {
+            s.active = false;
+            s.mesh.visible = false;
+          }
+        }
+
+        // 4. Update drifting world-space cannon smoke
+        for (let i = 0; i < this.maxSmoke; i++) {
+          const sm = this.smokeItems[i];
+          if (!sm.active) continue;
+          sm.age += dt;
+          if (sm.age >= sm.maxAge) {
+            sm.active = false;
+            sm.mesh.visible = false;
+            continue;
+          }
+          const p = sm.age / sm.maxAge;
+          // Damp initial muzzle velocity into steady wind drift
+          sm.vel.multiplyScalar(Math.pow(0.32, dt));
+          sm.vel.addScaledVector(CONFIG.windDirection, 0.65 * dt);
+          sm.mesh.position.addScaledVector(sm.vel, dt);
+          const sc = sm.startScale + (sm.endScale - sm.startScale) * Math.pow(p, 0.65);
+          sm.mesh.scale.setScalar(sc);
+          sm.mesh.material.opacity = (1.0 - p) * (sm.maxAge < 0.2 ? 0.92 : 0.46);
+        }
+
+        // 5. Update ballistic cannonballs & check exact displaced ocean wave collision
+        for (let i = 0; i < this.maxBalls; i++) {
+          const b = this.balls[i];
+          if (!b.active) continue;
+          b.vel.y -= 9.8 * dt;
+          b.mesh.position.addScaledVector(b.vel, dt);
+
+          const waterY = this.ocean.getWaveHeight(b.mesh.position.x, b.mesh.position.z, elapsed);
+          if (b.mesh.position.y <= waterY) {
+            b.active = false;
+            b.mesh.visible = false;
+            this.triggerWaterImpact(b.mesh.position.x, waterY, b.mesh.position.z, elapsed);
+          }
+        }
+
+        // 6. Update vertical splash plumes
+        for (let i = 0; i < this.maxPlumes; i++) {
+          const pl = this.plumes[i];
+          if (!pl.active) continue;
+          pl.age += dt;
+          if (pl.age >= pl.maxAge) {
+            pl.active = false;
+            pl.mesh.visible = false;
+            continue;
+          }
+          const p = pl.age / pl.maxAge;
+          const heightScale = Math.sin(p * Math.PI) * pl.maxHeight;
+          const widthScale = 0.65 + p * 1.15;
+          pl.mesh.position.y = this.ocean.getWaveHeight(pl.mesh.position.x, pl.mesh.position.z, elapsed) - 0.1;
+          pl.mesh.scale.set(widthScale, Math.max(0.05, heightScale), widthScale);
+          pl.mesh.material.opacity = (1.0 - p) * 0.85;
+        }
+
+        // 7. Update impact droplets (disappear cleanly at displaced wave height)
+        for (let i = 0; i < this.maxDroplets; i++) {
+          const d = this.droplets[i];
+          if (!d.active) continue;
+          d.age += dt;
+          if (d.age >= d.maxAge) {
+            d.active = false;
+            d.mesh.visible = false;
+            continue;
+          }
+          d.vel.y -= 11.5 * dt;
+          d.mesh.position.addScaledVector(d.vel, dt);
+          if (d.vel.y < 0) {
+            const wy = this.ocean.getWaveHeight(d.mesh.position.x, d.mesh.position.z, elapsed);
+            if (d.mesh.position.y <= wy) {
+              d.active = false;
+              d.mesh.visible = false;
+            }
+          }
+        }
+
+        // 8. Update normal-aligned foam & ripple rings
+        for (let i = 0; i < this.maxRings; i++) {
+          const r = this.rings[i];
+          if (!r.active) continue;
+          r.age += dt;
+          if (r.age >= r.maxAge) {
+            r.active = false;
+            r.mesh.visible = false;
+            continue;
+          }
+          const p = r.age / r.maxAge;
+          const sc = r.startScale + (r.endScale - r.startScale) * Math.pow(p, 0.72);
+          r.mesh.scale.setScalar(sc);
+          r.mesh.position.y = this.ocean.getWaveHeight(r.mesh.position.x, r.mesh.position.z, elapsed) + 0.04;
+          this.ocean.getWaveNormal(r.mesh.position.x, r.mesh.position.z, elapsed, this.tmpNormal);
+          r.mesh.quaternion.setFromUnitVectors(this.upVec, this.tmpNormal);
+          r.mesh.material.opacity = (1.0 - p) * r.baseAlpha;
+        }
+      }
+    }
+
+    /* ==========================================================================
+     * 5. FIFO BLOCK VOLLEY QUEUE & ROLLING BROADSIDE SCHEDULER
+     *    Strict rule:
+     *    - 1 new CKB block = 1 cannon volley
+     *    - 1 transaction (including cellbase) = 1 cannon shot
+     * ========================================================================== */
+    class BroadsideVolleyDirector {
+      constructor(boat, effects, uiUpdater) {
+        this.boat = boat;
+        this.effects = effects;
+        this.uiUpdater = uiUpdater;
+
+        this.queue = [];
+        this.activeVolley = null;
+        this.shotTimer = 0;
+        this.patternTypes = ['BOW_TO_STERN', 'STERN_TO_BOW', 'ALTERNATING', 'SHUFFLED'];
+        this.patternIndex = 0;
+      }
+
+      enqueueBlockVolley(blockNumber, blockHash, txCount) {
+        const shots = Math.max(1, Number(txCount) || 1);
+        this.queue.push({
+          blockNumber,
+          blockHash,
+          totalShots: shots,
+          firedShots: 0
+        });
+        this.uiUpdater.updateQueueCount(this.queue.length);
+        if (!this.activeVolley) {
+          this._startNextVolley();
+        }
+      }
+
+      _computeCadenceSeconds(totalShots) {
+        if (totalShots <= 10) return 0.25;  // 250 ms
+        if (totalShots <= 30) return 0.18;  // 180 ms
+        if (totalShots <= 75) return 0.115; // 115 ms
+        return 0.065;                       // 65 ms for 76+ TX
+      }
+
+      _buildEmitterSequence(emitterCount, pattern) {
+        const indices = Array.from({ length: emitterCount }, (_, i) => i);
+        if (pattern === 'STERN_TO_BOW') {
+          return indices.reverse();
+        }
+        if (pattern === 'ALTERNATING') {
+          const out = [];
+          let l = 0, r = emitterCount - 1;
+          while (l <= r) {
+            out.push(l++);
+            if (l <= r) out.push(r--);
+          }
+          return out;
+        }
+        if (pattern === 'SHUFFLED') {
+          for (let i = indices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indices[i], indices[j]] = [indices[j], indices[i]];
+          }
+          return indices;
+        }
+        return indices; // BOW_TO_STERN
+      }
+
+      _startNextVolley() {
+        if (this.queue.length === 0) {
+          this.activeVolley = null;
+          this.uiUpdater.setVolleyStatus('WAITING FOR NEXT CKB BLOCK');
+          this.uiUpdater.updateQueueCount(0);
+          return;
+        }
+
+        const next = this.queue.shift();
+        const pattern = this.patternTypes[this.patternIndex % this.patternTypes.length];
+        this.patternIndex++;
+
+        const emitterCount = Math.max(1, this.boat.emitters.length);
+        this.activeVolley = {
+          ...next,
+          cadenceSec: this._computeCadenceSeconds(next.totalShots),
+          sequence: this._buildEmitterSequence(emitterCount, pattern)
+        };
+        this.shotTimer = 0.05; // Fire first shot almost immediately
+
+        this.uiUpdater.onVolleyStarted(this.activeVolley);
+        this.uiUpdater.updateQueueCount(this.queue.length);
+      }
+
+      update(dt) {
+        if (!this.activeVolley) return;
+
+        this.shotTimer -= dt;
+        if (this.shotTimer <= 0 && this.activeVolley.firedShots < this.activeVolley.totalShots) {
+          const v = this.activeVolley;
+          const emitters = this.boat.emitters;
+          if (emitters.length > 0) {
+            const emitterIdx = v.sequence[v.firedShots % v.sequence.length];
+            this.effects.fireCannonFromEmitter(emitters[emitterIdx]);
+            this.boat.addRecoilImpulse();
+          }
+          v.firedShots++;
+          this.uiUpdater.setVolleyStatus(`FIRING ${v.firedShots} / ${v.totalShots}`);
+
+          if (v.firedShots >= v.totalShots) {
+            // Brief pause after final shot before starting next queued block volley
+            this.shotTimer = 1.15;
+          } else {
+            this.shotTimer = v.cadenceSec;
+          }
+        } else if (this.shotTimer <= 0 && this.activeVolley.firedShots >= this.activeVolley.totalShots) {
+          this._startNextVolley();
+        }
+      }
+    }
+
+    /* ==========================================================================
+     * 6. LIVE CKB JSON-RPC MONITOR (WITH DEDUPLICATION & MISSED BLOCK RECOVERY)
+     * ========================================================================== */
+    class CkbBroadsideMonitor {
+      constructor(rpcUrl, volleyDirector, uiUpdater) {
+        this.rpcUrl = rpcUrl;
+        this.director = volleyDirector;
+        this.ui = uiUpdater;
+
+        this.lastProcessedHash = null;
+        this.lastProcessedNumber = null;
+        this.seenHashes = new Set();
+        this.pollTimer = null;
+        this.failureCount = 0;
+        this.generation = 0;
+      }
+
+      setEndpoint(newUrl) {
+        this.rpcUrl = newUrl.trim();
+        this.lastProcessedHash = null;
+        this.lastProcessedNumber = null;
+        this.seenHashes.clear();
+        this.failureCount = 0;
+        this.restart();
+      }
+
+      restart() {
+        if (this.pollTimer) {
+          clearTimeout(this.pollTimer);
+          this.pollTimer = null;
+        }
+        this.generation++;
+        const gen = this.generation;
+        this.ui.setConnectionStatus('CONNECTING', false);
+        this._pollCycle(gen, true);
+      }
+
+      async _rpcCall(method, params = []) {
+        const res = await fetch(this.rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: Date.now(),
+            jsonrpc: '2.0',
+            method,
+            params
+          })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message || 'RPC Error');
+        return data.result;
+      }
+
+      async _pollCycle(gen, isInitialBaseline) {
+        if (gen !== this.generation) return;
+        try {
+          const tipHeader = await this._rpcCall('get_tip_header', []);
+          if (gen !== this.generation || !tipHeader) return;
+
+          const tipHash = tipHeader.hash;
+          const tipNumber = Number(BigInt(tipHeader.number));
+
+          this.failureCount = 0;
+          this.ui.setConnectionStatus('CONNECTED', false);
+
+          if (isInitialBaseline || this.lastProcessedHash === null) {
+            // Establish initial baseline tip without firing a volley
+            const fullBlock = await this._rpcCall('get_block', [tipHash]);
+            if (gen !== this.generation) return;
+            const txCount = fullBlock?.transactions?.length ?? 1;
+            this.lastProcessedHash = tipHash;
+            this.lastProcessedNumber = tipNumber;
+            this.seenHashes.add(tipHash);
+            this.ui.updateBlockHeader(tipNumber, txCount);
+          } else if (tipHash !== this.lastProcessedHash && !this.seenHashes.has(tipHash)) {
+            // Recover up to 5 missed blocks sequentially if height jumped
+            const gap = tipNumber - this.lastProcessedNumber;
+            if (gap > 1 && gap <= 5) {
+              for (let h = this.lastProcessedNumber + 1; h < tipNumber; h++) {
+                const hexNum = '0x' + h.toString(16);
+                const missedBlock = await this._rpcCall('get_block_by_number', [hexNum]);
+                if (gen !== this.generation) return;
+                if (missedBlock && missedBlock.header && !this.seenHashes.has(missedBlock.header.hash)) {
+                  const mHash = missedBlock.header.hash;
+                  const mTx = missedBlock.transactions?.length ?? 1;
+                  this.seenHashes.add(mHash);
+                  this.director.enqueueBlockVolley(h, mHash, mTx);
+                }
+              }
+            }
+
+            // Fetch and enqueue the new canonical tip block
+            const fullBlock = await this._rpcCall('get_block', [tipHash]);
+            if (gen !== this.generation) return;
+            const txCount = fullBlock?.transactions?.length ?? 1;
+            this.lastProcessedHash = tipHash;
+            this.lastProcessedNumber = tipNumber;
+            this.seenHashes.add(tipHash);
+
+            // Bound seenHashes set size for multi-hour stability
+            if (this.seenHashes.size > 300) {
+              const first = this.seenHashes.values().next().value;
+              this.seenHashes.delete(first);
+            }
+
+            this.director.enqueueBlockVolley(tipNumber, tipHash, txCount);
+          }
+        } catch (err) {
+          this.failureCount++;
+          this.ui.setConnectionStatus('RECONNECTING', true);
+        }
+
+        if (gen === this.generation) {
+          const backoff = this.failureCount > 0
+            ? Math.min(18000, CONFIG.pollIntervalMs * Math.pow(1.5, this.failureCount))
+            : CONFIG.pollIntervalMs;
+          this.pollTimer = setTimeout(() => this._pollCycle(gen, false), backoff);
+        }
+      }
+    }
+
+    /* ==========================================================================
+     * 7. SCENE, CAMERA, LIGHTING & UI WIRING
+     * ========================================================================== */
+    const container = document.getElementById('canvas-container');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, QUALITY_PRESETS[currentQuality].dprCap));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x16293d);
+
+    // Dramatic late-afternoon maritime sky dome
+    const skyGeo = new THREE.SphereGeometry(95, 24, 16);
+    const skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      vertexShader: `
+        varying vec3 vPos;
+        void main() {
+          vPos = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vPos;
+        void main() {
+          float h = clamp(normalize(vPos).y, 0.0, 1.0);
+          vec3 horizon = vec3(0.24, 0.38, 0.52);
+          vec3 midSky = vec3(0.09, 0.21, 0.36);
+          vec3 zenith = vec3(0.03, 0.08, 0.16);
+          vec3 col = mix(horizon, midSky, pow(h, 0.55));
+          col = mix(col, zenith, pow(h, 1.4));
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+    scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+    // Camera framed for mobile portrait & desktop three-quarter broadside + impact zone
+    const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.5, 160);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.enablePan = false;
+    controls.minDistance = 8.5;
+    controls.maxDistance = 26.0;
+    controls.minPolarAngle = 0.35;
+    controls.maxPolarAngle = Math.PI * 0.46; // Never allow underwater camera
+    controls.minAzimuthAngle = -Math.PI * 0.38;
+    controls.maxAzimuthAngle = Math.PI * 0.42;
+
+    const defaultCamTarget = new THREE.Vector3(0.0, 0.6, 2.4);
+    const defaultCamPos = new THREE.Vector3();
+
+    function computeIdealCameraFrame() {
+      const isPortrait = window.innerHeight > window.innerWidth;
+      if (isPortrait) {
+        defaultCamPos.set(-4.2, 5.2, 16.2);
+        defaultCamTarget.set(-0.2, 0.4, 2.8);
+      } else {
+        defaultCamPos.set(-3.6, 4.3, 12.6);
+        defaultCamTarget.set(0.0, 0.6, 2.2);
+      }
+    }
+    computeIdealCameraFrame();
+    camera.position.copy(defaultCamPos);
+    controls.target.copy(defaultCamTarget);
+    controls.update();
+
+    let lastInteractionTime = -999;
+    let autoReturnCamera = true;
+    controls.addEventListener('start', () => {
+      lastInteractionTime = performance.now() * 0.001;
+    });
+
+    // Lighting
+    const hemiLight = new THREE.HemisphereLight(0xa4d2ff, 0x0c243a, 1.15);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffe1b5, 2.45);
+    sunLight.position.set(-14, 18, 12);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(1024, 1024);
+    sunLight.shadow.camera.near = 2;
+    sunLight.shadow.camera.far = 45;
+    const d = 10;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    scene.add(sunLight);
+
+    // Core Systems
+    const audioEngine = new MaritimeAudioEngine();
+    const ocean = new OceanSimulation(scene);
+    const boat = new PirateBoatController(scene, ocean);
+    const effects = new MaritimeEffectsManager(scene, ocean, audioEngine);
+
+    // UI Helper
+    const statusPill = document.getElementById('statusPill');
+    const statusText = document.getElementById('statusText');
+    const blockNumberText = document.getElementById('blockNumberText');
+    const txCountText = document.getElementById('txCountText');
+    const firingStatusText = document.getElementById('firingStatusText');
+    const queueCountText = document.getElementById('queueCountText');
+    const volleyBanner = document.getElementById('volleyBanner');
+    const bannerBlockNum = document.getElementById('bannerBlockNum');
+    const bannerShotsText = document.getElementById('bannerShotsText');
+    let bannerTimeout = null;
+
+    const uiController = {
+      setConnectionStatus(label, isWarning) {
+        statusText.textContent = label;
+        statusPill.classList.toggle('reconnecting', !!isWarning);
+      },
+      updateBlockHeader(blockNum, txCount) {
+        blockNumberText.textContent = `BLOCK #${Number(blockNum).toLocaleString()}`;
+        txCountText.textContent = `${txCount} TX`;
+      },
+      setVolleyStatus(text) {
+        firingStatusText.textContent = text;
+      },
+      updateQueueCount(qLen) {
+        queueCountText.textContent = qLen > 0 ? `+${qLen} QUEUED` : '';
+      },
+      onVolleyStarted(volley) {
+        this.updateBlockHeader(volley.blockNumber, volley.totalShots);
+        this.setVolleyStatus(`FIRING 1 / ${volley.totalShots}`);
+        bannerBlockNum.textContent = `#${Number(volley.blockNumber).toLocaleString()}`;
+        const sLabel = volley.totalShots === 1 ? 'SHOT' : 'SHOTS';
+        const txLabel = volley.totalShots === 1 ? 'TRANSACTION' : 'TRANSACTIONS';
+        bannerShotsText.textContent = `${volley.totalShots} ${txLabel} · ${volley.totalShots} ${sLabel}`;
+        volleyBanner.classList.add('visible');
+        if (bannerTimeout) clearTimeout(bannerTimeout);
+        bannerTimeout = setTimeout(() => {
+          volleyBanner.classList.remove('visible');
+        }, 2600);
+      }
+    };
+
+    const volleyDirector = new BroadsideVolleyDirector(boat, effects, uiController);
+    const rpcMonitor = new CkbBroadsideMonitor(CONFIG.defaultRpcUrl, volleyDirector, uiController);
+
+    // Load Supplied `BoatAnimated.glb` once and start monitoring
+    boat.loadBoatGlb('./BoatAnimated.glb').then(() => {
+      rpcMonitor.restart();
+    }).catch((err) => {
+      console.error('Failed to load BoatAnimated.glb:', err);
+      rpcMonitor.restart();
+    });
+
+    /* ==========================================================================
+     * 8. INTERACTIVE UI & LIGHT-DISMISS DIALOG WIRING
+     * ========================================================================== */
+    const startVoyageBtn = document.getElementById('startVoyageBtn');
+    function unlockVoyageAudio() {
+      audioEngine.unlock();
+      startVoyageBtn.classList.add('hidden');
+    }
+    startVoyageBtn.addEventListener('click', unlockVoyageAudio);
+    window.addEventListener('pointerdown', () => {
+      if (audioEngine.ctx && audioEngine.ctx.state === 'running') {
+        startVoyageBtn.classList.add('hidden');
+      }
+    }, { passive: true });
+
+    const settingsDialog = document.getElementById('settingsDialog');
+    document.getElementById('openSettingsBtn').addEventListener('click', () => {
+      unlockVoyageAudio();
+      settingsDialog.showModal();
+    });
+    document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+      settingsDialog.close();
+    });
+
+    // Mandatory fallback for browsers without native `<dialog closedby="any">` support
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      settingsDialog.addEventListener('click', (event) => {
+        if (event.target !== settingsDialog) return;
+        const rect = settingsDialog.getBoundingClientRect();
+        const isDialogContent = (
+          rect.top <= event.clientY &&
+          event.clientY <= rect.top + rect.height &&
+          rect.left <= event.clientX &&
+          event.clientX <= rect.left + rect.width
+        );
+        if (isDialogContent) return;
+        settingsDialog.close();
+      });
+    }
+
+    document.getElementById('reconnectBtn').addEventListener('click', () => {
+      const url = document.getElementById('rpcInput').value.trim();
+      if (url) {
+        rpcMonitor.setEndpoint(url);
+        settingsDialog.close();
+      }
+    });
+
+    document.getElementById('testVolleyBtn').addEventListener('click', () => {
+      unlockVoyageAudio();
+      const baseNum = rpcMonitor.lastProcessedNumber || 17842921;
+      const randomShots = [1, 6, 12, 18][Math.floor(Math.random() * 4)];
+      volleyDirector.enqueueBlockVolley(baseNum + 1, '0xtest_' + Date.now(), randomShots);
+    });
+
+    document.querySelectorAll('[data-sim]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        unlockVoyageAudio();
+        const count = Number(btn.getAttribute('data-sim'));
+        const baseNum = (rpcMonitor.lastProcessedNumber || 17842920) + 1;
+        volleyDirector.enqueueBlockVolley(baseNum, '0xsim_' + Date.now(), count);
+        settingsDialog.close();
+      });
+    });
+
+    document.getElementById('simQueueBtn').addEventListener('click', () => {
+      unlockVoyageAudio();
+      const baseNum = (rpcMonitor.lastProcessedNumber || 17842920) + 1;
+      volleyDirector.enqueueBlockVolley(baseNum, '0xsimA_' + Date.now(), 20);
+      volleyDirector.enqueueBlockVolley(baseNum + 1, '0xsimB_' + Date.now(), 6);
+      settingsDialog.close();
+    });
+
+    document.querySelectorAll('#qualityGroup .seg-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#qualityGroup .seg-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentQuality = btn.getAttribute('data-quality');
+        const preset = QUALITY_PRESETS[currentQuality];
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.dprCap));
+        ocean.buildOceanMesh(preset.oceanSegments);
+      });
+    });
+
+    document.getElementById('soundToggle').addEventListener('change', (e) => {
+      audioEngine.enabled = e.target.checked;
+    });
+    document.getElementById('volumeSlider').addEventListener('input', (e) => {
+      audioEngine.volume = Number(e.target.value);
+    });
+    document.getElementById('autoCamToggle').addEventListener('change', (e) => {
+      autoReturnCamera = e.target.checked;
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      computeIdealCameraFrame();
+    });
+
+    /* ==========================================================================
+     * 9. MAIN ANIMATION LOOP
+     * ========================================================================== */
+    let prevTime = performance.now() * 0.001;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (document.hidden) return;
+
+      const now = performance.now() * 0.001;
+      const dt = Math.min(0.05, Math.max(0.001, now - prevTime));
+      prevTime = now;
+
+      ocean.update(dt, now);
+      const bowImmersion = boat.update(dt, now);
+      volleyDirector.update(dt);
+      effects.update(dt, now, bowImmersion, boat);
+
+      // Gently return camera toward cinematic broadside framing after inactivity
+      if (autoReturnCamera && now - lastInteractionTime > 4.5) {
+        camera.position.lerp(defaultCamPos, dt * 0.9);
+        controls.target.lerp(defaultCamTarget, dt * 1.2);
+      }
+      controls.update();
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>

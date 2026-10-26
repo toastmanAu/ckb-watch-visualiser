@@ -56,6 +56,15 @@ object VisualiserRegistry {
             isAvailable = true
         ),
         VisualiserInfo(
+            id = "ckb_pirate",
+            title = "Pirate Broadside",
+            subtitle = "Sailing pirate ship firing 1 cannonball per CKB transaction into the waves",
+            badge = "ACTIVE",
+            iconRes = R.drawable.ic_pirate,
+            assetPath = "file:///android_asset/visualisers/ckb-pirate/index.html",
+            isAvailable = true
+        ),
+        VisualiserInfo(
             id = "fiber_network",
             title = "Fiber Network",
             subtitle = "Lightning-fast P2P state channels & peer routing topologies",

@@ -48,18 +48,25 @@ Visualizes live Nervos CKB transactions in each newly mined block as **3D sharks
 | :---: | :---: | :---: |
 | <img src="screenshots/watch_sharks_overview.png" width="220" alt="Shark Raft Live Block" /> | <img src="screenshots/watch_sharks_surge.png" width="220" alt="Toastman on Wooden Raft" /> | <img src="screenshots/watch_sharks_inspector.png" width="220" alt="Shark Raft Inspector" /> |
 
+### 6. Exhibition: CKB Pirate Broadside (`BoatAnimated.glb`)
+Presents the live Nervos CKB blockchain as an **ocean-going pirate ship firing cannon volleys across a Gerstner wave sea** (`1 New Block = 1 Cannon Volley`, `1 Transaction INCLUDING cellbase = 1 Cannon Shot`). Both the standalone Three.js exhibit (`pirate.html`) and the native Wear OS engine (`PirateShipVisualiserView.kt`) load the supplied `BoatAnimated.glb` 3D pirate ship (`40,651` vertices, `47,996` triangles, embedded `2.01 MB` texture) with wave-derived heave/pitch/roll (`BoatFloatRoot`), 8 broadside cannon emitters, muzzle flashes, drifting smoke, ballistic cannonballs colliding with the displaced wave surface, vertical splash plumes, expanding foam rings, persistent V-wake, and bow spray!
+
+| Pirate Ship on Gerstner Sea | Broadside Cannon Volley & Splashes | Block Volley Inspector |
+| :---: | :---: | :---: |
+| <img src="screenshots/watch_pirate_overview.png" width="220" alt="Pirate Ship Overview" /> | <img src="screenshots/watch_pirate_volley.png" width="220" alt="Pirate Broadside Cannon Volley" /> | <img src="screenshots/watch_pirate_inspector.png" width="220" alt="Pirate Broadside Inspector" /> |
+
 ---
 
 ## 🌟 Core Architecture
 
 ### Dual-Engine Design
-1. **Native Wear OS 60 FPS Canvas & GLB Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`, `LegoTowerVisualiserView.kt`, `SharkRaftVisualiserView.kt`):
+1. **Native Wear OS 60 FPS Canvas & GLB Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`, `LegoTowerVisualiserView.kt`, `SharkRaftVisualiserView.kt`, `PirateShipVisualiserView.kt`):
    - Standard Android `WebView` is omitted on Wear OS devices to conserve RAM and storage.
-   - We engineered a zero-overhead, hardware-accelerated native 2D/3D renderer running at a locked 60 FPS on the Pixel Watch 3 GPU, including a native binary glTF 2.0 (`.glb`) parser and 2-bone skeletal skinning engine for `ToastmanAnim.glb`.
+   - We engineered a zero-overhead, hardware-accelerated native 2D/3D renderer running at a locked 60 FPS on the Pixel Watch 3 GPU, including a native binary glTF 2.0 (`.glb`) parser and skeletal/surflet renderer for `ToastmanAnim.glb` and `BoatAnimated.glb`.
    - Direct coroutine-based JSON-RPC streaming over Wi-Fi/Bluetooth proxy with minimal battery consumption.
-2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`, `bricks.html`, `sharks.html`):
+2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`, `bricks.html`, `sharks.html`, `pirate.html`):
    - Standalone single-file HTML/CSS/JavaScript implementations.
-   - Procedural 3D geometry, `GLTFLoader` + `AnimationMixer` character animation, custom GLSL Gerstner ocean shaders, `InstancedMesh` LEGO brick rendering, refractive Fresnel glass materials, hinged mechanical clockwork, and Web Audio API sound synthesis.
+   - Procedural 3D geometry, `GLTFLoader` + `AnimationMixer` character and ship animation, custom GLSL Gerstner ocean shaders with local cannonball impact wave perturbations, `InstancedMesh` LEGO brick rendering, refractive Fresnel glass materials, hinged mechanical clockwork, and Web Audio API sound synthesis.
    - Smooth museum-turntable auto-orbit with pinch-to-zoom and touch drag controls.
 
 ---
@@ -91,8 +98,10 @@ $$\text{newCellCount} = \sum_{\text{tx} \in \text{block.transactions}} \text{tx.
   - Physical watch crown inputs (`AXIS_SCROLL`) smoothly orbit the 3D camera around the centerpiece with realistic rotational inertia.
 - **Haptic Engine (`VibratorManager`)**:
   - Subtle tactile ticks on rotary crown increments.
-  - Rhythmic double-pulses upon new block commits and cuckoo calls.
+  - Rhythmic double-pulses upon new block commits, cannon volleys, and cuckoo calls.
   - Crisp haptic clicks when inspecting a Cell specimen, block plaque, or locking an Epoch brick.
+- **In-Visualizer Back-to-Menu Navigation**:
+  - Floating 9-o'clock `<` pill button and left-edge swipe-to-dismiss gesture return cleanly to the main visualizer menu without closing the app.
 - **AMOLED Power Optimization**:
   - Pure `#000000` black backgrounds to minimize power draw on wearable OLED panels.
   - Capped pixel ratios and frame throttling when the screen is dimmed.
@@ -110,7 +119,9 @@ watch-visualiser/
 ├── cuckoo.html                  # Mechanical Cuckoo Clock (Three.js Web Exhibit)
 ├── bricks.html                  # Epoch LEGO Brick Tower (Three.js Web Exhibit)
 ├── sharks.html                  # CKB Shark Raft (Three.js + GLTFLoader Web Exhibit)
+├── pirate.html                  # CKB Pirate Broadside (Three.js + GLTFLoader Web Exhibit)
 ├── ToastmanAnim.glb             # Supplied 3D Toastman character with Action animation
+├── BoatAnimated.glb             # Supplied 3D Pirate Ship with Action animation & texture
 ├── three.min.js                 # Bundled Three.js engine for offline execution
 ├── server.py                    # Zero-dependency local dev server with auto port detection
 ├── build.gradle.kts             # Root Gradle build script
@@ -127,23 +138,27 @@ watch-visualiser/
         │   ├── ckb-bonsai/index.html
         │   ├── ckb-cuckoo/index.html
         │   ├── ckb-bricks/index.html
-        │   └── ckb-sharks/
+        │   ├── ckb-sharks/
+        │   │   ├── index.html
+        │   │   └── ToastmanAnim.glb
+        │   └── ckb-pirate/
         │       ├── index.html
-        │       └── ToastmanAnim.glb
+        │       └── BoatAnimated.glb
         ├── java/network/nervos/watchvisualiser/
         │   ├── MainActivity.kt        # Rotary-scrollable Wear OS Compose menu
-        │   ├── VisualiserActivity.kt  # Native visualizer activity dispatcher
+        │   ├── VisualiserActivity.kt  # Native visualizer activity dispatcher & back pill
         │   ├── SettingsActivity.kt    # CKB RPC & haptic settings screen
         │   ├── data/
         │   │   ├── CkbRpcClient.kt       # Native CKB JSON-RPC & Cell/Epoch extractor
         │   │   ├── VisualiserRegistry.kt # Extensible visualizer catalog
         │   │   └── AppPreferences.kt     # SharedPreferences store
         │   └── ui/
-        │       ├── LabVisualiserView.kt       # 60 FPS Native Cell Lab renderer
-        │       ├── BonsaiVisualiserView.kt    # 60 FPS Native Bonsai renderer
-        │       ├── CuckooVisualiserView.kt    # 60 FPS Native Cuckoo Clock renderer
-        │       ├── LegoTowerVisualiserView.kt # 60 FPS Native Epoch Brick Tower renderer
-        │       └── SharkRaftVisualiserView.kt # 60 FPS Native Shark Raft & GLB renderer
+        │       ├── LabVisualiserView.kt        # 60 FPS Native Cell Lab renderer
+        │       ├── BonsaiVisualiserView.kt     # 60 FPS Native Bonsai renderer
+        │       ├── CuckooVisualiserView.kt     # 60 FPS Native Cuckoo Clock renderer
+        │       ├── LegoTowerVisualiserView.kt  # 60 FPS Native Epoch Brick Tower renderer
+        │       ├── SharkRaftVisualiserView.kt  # 60 FPS Native Shark Raft & GLB renderer
+        │       └── PirateShipVisualiserView.kt # 60 FPS Native Pirate Broadside & GLB renderer
         └── res/                       # Vector drawables, colors, strings
 ```
 
@@ -162,6 +177,7 @@ Open in any browser:
 - **Mechanical Cuckoo Clock**: [http://localhost:8084/cuckoo.html](http://localhost:8084/cuckoo.html)
 - **Epoch Brick Tower**: [http://localhost:8084/bricks.html](http://localhost:8084/bricks.html)
 - **CKB Shark Raft (`ToastmanAnim.glb`)**: [http://localhost:8084/sharks.html](http://localhost:8084/sharks.html)
+- **CKB Pirate Broadside (`BoatAnimated.glb`)**: [http://localhost:8084/pirate.html](http://localhost:8084/pirate.html)
 
 *Tip: Click the gear icon $\rightarrow$ **"TEST BLOCK"**, **"DEMO CUCKOO"**, **"DEMO NEW BLOCK"**, or **"SIMULATE"** to trigger an immediate CKB block event.*
 
