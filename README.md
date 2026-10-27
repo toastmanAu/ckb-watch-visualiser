@@ -274,5 +274,11 @@ The [`VisualiserRegistry.kt`](app/src/main/java/network/nervos/watchvisualiser/d
 
 ---
 
+## 🔒 Privacy Policy
+We strictly adhere to a **Zero Data Collection Policy**. No personal data, device identifiers, or user tracking are collected, processed, or transmitted. Read our full [Privacy Policy](https://toastmanau.github.io/ckb-watch-visualiser/privacy.html) ([`PRIVACY.md`](PRIVACY.md)).
+
+---
+
 ## 📜 License
 Licensed under the [MIT License](LICENSE).
+

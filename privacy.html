@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - Nervos CKB Watch Visualisers</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --heading: #f0f6fc;
+      --accent: #58a6ff;
+      --green: #3fb950;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 2.5rem;
+    }
+    h1 {
+      color: var(--heading);
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle {
+      color: #8b949e;
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1rem;
+    }
+    h2 {
+      color: var(--heading);
+      font-size: 1.25rem;
+      margin-top: 1.75rem;
+      margin-bottom: 0.75rem;
+    }
+    p, ul {
+      margin-bottom: 1rem;
+    }
+    ul {
+      padding-left: 1.5rem;
+    }
+    li {
+      margin-bottom: 0.5rem;
+    }
+    strong {
+      color: var(--heading);
+    }
+    code {
+      background: rgba(110, 118, 129, 0.4);
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-size: 85%;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(63, 185, 80, 0.4);
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    footer {
+      margin-top: 2.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: #8b949e;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="badge">Zero Data Collection Policy</div>
+    <h1>Privacy Policy</h1>
+    <div class="subtitle">
+      <strong>Application:</strong> Nervos CKB Watch Visualisers<br>
+      <strong>Package Name:</strong> <code>network.nervos.watchvisualiser</code><br>
+      <strong>Effective Date:</strong> October 27, 2026
+    </div>
+
+    <h2>1. Overview</h2>
+    <p>
+      <strong>Nervos CKB Watch Visualisers</strong> is an open-source, read-only educational and contemplative visualizer application designed for Wear OS smartwatches and modern web browsers. We are committed to complete transparency and user privacy.
+    </p>
+    <p>
+      <strong>We do not collect, store, transmit, process, or sell any personal data, device identifiers, or user information of any kind.</strong>
+    </p>
+
+    <h2>2. Data Collection and Usage</h2>
+    <ul>
+      <li><strong>No Personal Information:</strong> We do not collect names, email addresses, phone numbers, physical locations, or contact information.</li>
+      <li><strong>No Account Required:</strong> The application does not require user registration, logins, passwords, or authentication.</li>
+      <li><strong>No Financial Data or Wallets:</strong> The application is purely a read-only visualizer. It does not contain wallet features, does not manage private keys, seed phrases, or credentials, and cannot initiate or sign transactions.</li>
+      <li><strong>No Analytics or Tracking:</strong> The application contains no tracking libraries, telemetry SDKs, crash analytics SDKs, advertising frameworks, or cookies.</li>
+    </ul>
+
+    <h2>3. Network Communications and Blockchain Data</h2>
+    <p>
+      To display real-time blockchain activity, the application communicates directly with public Nervos Network (CKB) JSON-RPC and WebSocket endpoints (such as public mainnet RPC nodes configured in the app settings):
+    </p>
+    <ul>
+      <li>All network requests are strictly <strong>read-only</strong> queries for publicly available blockchain data (e.g., current block height, epoch progress, and block transactions).</li>
+      <li>No user identifiers or personal data are transmitted with these queries.</li>
+      <li>Users can configure custom RPC endpoint URLs in the settings menu at any time.</li>
+    </ul>
+
+    <h2>4. Device Permissions</h2>
+    <p>
+      The Wear OS application requests only the minimal permissions necessary for its visual display and user experience:
+    </p>
+    <ul>
+      <li><code>android.permission.INTERNET</code>: Required solely to query public CKB JSON-RPC and WebSocket nodes for live block information.</li>
+      <li><code>android.permission.ACCESS_NETWORK_STATE</code>: Used to detect internet availability and handle node reconnection gracefully.</li>
+      <li><code>android.permission.VIBRATE</code>: Used exclusively to provide subtle tactile haptic feedback for physical rotary crown rotations and block arrival events.</li>
+      <li><code>android.permission.WAKE_LOCK</code>: Used only if the user explicitly enables the "Keep Screen On" setting while actively observing a live visualization.</li>
+    </ul>
+
+    <h2>5. Children's Privacy</h2>
+    <p>
+      The application does not collect any personal information from anyone, including children under the age of 13.
+    </p>
+
+    <h2>6. Security and Open Source Verification</h2>
+    <p>
+      The complete source code of <strong>Nervos CKB Watch Visualisers</strong> is publicly available for independent audit and verification under the MIT License on GitHub:
+    </p>
+    <p>
+      <a href="https://github.com/toastmanAu/ckb-watch-visualiser" target="_blank" rel="noopener">https://github.com/toastmanAu/ckb-watch-visualiser</a>
+    </p>
+
+    <h2>7. Changes to This Policy</h2>
+    <p>
+      Any updates to this policy will be posted directly to this page and reflected in the repository history.
+    </p>
+
+    <h2>8. Contact Us</h2>
+    <p>
+      If you have questions or concerns regarding this privacy policy, you can open an issue or reach out via our GitHub repository:
+    </p>
+    <p>
+      <a href="https://github.com/toastmanAu/ckb-watch-visualiser/issues" target="_blank" rel="noopener">https://github.com/toastmanAu/ckb-watch-visualiser/issues</a>
+    </p>
+
+    <footer>
+      Nervos CKB Watch Visualisers &bull; Open-source under MIT License &bull; <a href="https://github.com/toastmanAu/ckb-watch-visualiser">GitHub</a>
+    </footer>
+  </div>
+</body>
+</html>
