@@ -74,6 +74,15 @@ object VisualiserRegistry {
             isAvailable = true
         ),
         VisualiserInfo(
+            id = "ckb_ferris",
+            title = "Ferris Wheel",
+            subtitle = "Illuminated nighttime Ferris wheel that shifts palettes & stops at station on new blocks",
+            badge = "ACTIVE",
+            iconRes = R.drawable.ic_ferris,
+            assetPath = "file:///android_asset/visualisers/ckb-ferris/index.html",
+            isAvailable = true
+        ),
+        VisualiserInfo(
             id = "fiber_network",
             title = "Fiber Network",
             subtitle = "Lightning-fast P2P state channels & peer routing topologies",

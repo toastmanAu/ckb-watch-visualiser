@@ -18,6 +18,7 @@ import network.nervos.watchvisualiser.data.AppPreferences
 import network.nervos.watchvisualiser.data.CkbRpcClient
 import network.nervos.watchvisualiser.ui.BonsaiVisualiserView
 import network.nervos.watchvisualiser.ui.CuckooVisualiserView
+import network.nervos.watchvisualiser.ui.FerrisWheelVisualiserView
 import network.nervos.watchvisualiser.ui.HalvingVesselVisualiserView
 import network.nervos.watchvisualiser.ui.LabVisualiserView
 import network.nervos.watchvisualiser.ui.LegoTowerVisualiserView
@@ -29,7 +30,8 @@ import kotlin.math.max
 /**
  * Native Wear OS Activity housing the visualizer selected by the user.
  * Seamlessly routes to LabVisualiserView, BonsaiVisualiserView, CuckooVisualiserView,
- * LegoTowerVisualiserView, SharkRaftVisualiserView, PirateShipVisualiserView, or HalvingVesselVisualiserView with:
+ * LegoTowerVisualiserView, SharkRaftVisualiserView, PirateShipVisualiserView,
+ * HalvingVesselVisualiserView, or FerrisWheelVisualiserView with:
  * - Full Pixel Watch 3 Digital Crown support
  * - Always-accessible floating `‹` Back-to-Menu pill button at 9 o'clock
  * - Standard Wear OS left-edge swipe-to-dismiss gesture back to MainActivity
@@ -43,6 +45,7 @@ class VisualiserActivity : ComponentActivity() {
     private var sharksView: SharkRaftVisualiserView? = null
     private var pirateView: PirateShipVisualiserView? = null
     private var halvingView: HalvingVesselVisualiserView? = null
+    private var ferrisView: FerrisWheelVisualiserView? = null
     private lateinit var preferences: AppPreferences
     private lateinit var rpcClient: CkbRpcClient
 
@@ -64,6 +67,7 @@ class VisualiserActivity : ComponentActivity() {
             "ckb_sharks" -> SharkRaftVisualiserView(this).also { sharksView = it }
             "ckb_pirate" -> PirateShipVisualiserView(this).also { pirateView = it }
             "ckb_halving" -> HalvingVesselVisualiserView(this).also { halvingView = it }
+            "ckb_ferris" -> FerrisWheelVisualiserView(this).also { ferrisView = it }
             else -> LabVisualiserView(this).also { labView = it }
         }
 
@@ -90,6 +94,7 @@ class VisualiserActivity : ComponentActivity() {
                 sharksView?.onBaselineLoaded(baseline)
                 pirateView?.onBaselineLoaded(baseline)
                 halvingView?.onBaselineLoaded(baseline)
+                ferrisView?.onBaselineLoaded(baseline)
             }
             onBlockDetected = { blockData ->
                 labView?.onBlockArrived(blockData)
@@ -99,6 +104,7 @@ class VisualiserActivity : ComponentActivity() {
                 sharksView?.onBlockArrived(blockData)
                 pirateView?.onBlockArrived(blockData)
                 halvingView?.onBlockArrived(blockData)
+                ferrisView?.onBlockArrived(blockData)
             }
             onStatusChanged = { status ->
                 cuckooView?.onStatusUpdated(status)
@@ -106,6 +112,7 @@ class VisualiserActivity : ComponentActivity() {
                 sharksView?.onStatusUpdated(status)
                 pirateView?.onStatusUpdated(status)
                 halvingView?.onStatusUpdated(status)
+                ferrisView?.onStatusUpdated(status)
             }
             start()
         }
@@ -139,6 +146,7 @@ class VisualiserActivity : ComponentActivity() {
             sharksView?.handleRotaryScroll(delta)
             pirateView?.handleRotaryScroll(delta)
             halvingView?.handleRotaryScroll(delta)
+            ferrisView?.handleRotaryScroll(delta)
             return true
         }
         return super.onGenericMotionEvent(event)

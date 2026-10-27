@@ -62,18 +62,25 @@ Visualizes the current variable-length **Nervos CKB Epoch** as a **3D borosilica
 | :---: | :---: | :---: |
 | <img src="screenshots/watch_halving_overview.png" width="220" alt="Halving Vessel Overview" /> | <img src="screenshots/watch_halving_droplet.png" width="220" alt="Halving Vessel Droplet & Ripple" /> | <img src="screenshots/watch_halving_inspector.png" width="220" alt="Halving & Epoch Inspector" /> |
 
+### 8. Exhibition: CKB Illuminated Ferris Wheel
+Presents the live Nervos CKB blockchain as a **nighttime amusement-park illuminated Ferris wheel** (`Ferris wheel rotating = Nervos Network progressing`, `New CKB block = Ferris wheel arriving at the station`). Built with concentric front/back tubular rims, cross-bracing struts, 16 radial twin-spokes, 16 counter-rotating passenger gondolas with damped pendulum inertia, A-frame support legs, and a festive boarding station. When a new canonical block arrives, decorative rim and spoke bulbs smoothly morph across 6 curated nighttime palettes with a travelling radial/clockwise light wave, the wheel gracefully decelerates (`DECELERATING`) to a brief station hold (`STOPPED`) with a non-obscuring block arrival card (`#blockNumber`, total transaction count including cellbase, and block timestamp), and then smoothly accelerates back to operating speed (`ACCELERATING` $\rightarrow$ `RUNNING`).
+
+| Nighttime Ferris Wheel (`RUNNING`) | New Block Station Arrival (`STOPPED`) | Block & Station Inspector |
+| :---: | :---: | :---: |
+| <img src="screenshots/watch_ferris_overview.png" width="220" alt="Ferris Wheel Running" /> | <img src="screenshots/watch_ferris_station.png" width="220" alt="Ferris Wheel Station Arrival" /> | <img src="screenshots/watch_ferris_inspector.png" width="220" alt="Ferris Wheel Inspector" /> |
+
 ---
 
 ## 🌟 Core Architecture
 
 ### Dual-Engine Design
-1. **Native Wear OS 60 FPS Canvas & GLB Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`, `LegoTowerVisualiserView.kt`, `SharkRaftVisualiserView.kt`, `PirateShipVisualiserView.kt`, `HalvingVesselVisualiserView.kt`):
+1. **Native Wear OS 60 FPS Canvas & GLB Engine** (`LabVisualiserView.kt`, `BonsaiVisualiserView.kt`, `CuckooVisualiserView.kt`, `LegoTowerVisualiserView.kt`, `SharkRaftVisualiserView.kt`, `PirateShipVisualiserView.kt`, `HalvingVesselVisualiserView.kt`, `FerrisWheelVisualiserView.kt`):
    - Standard Android `WebView` is omitted on Wear OS devices to conserve RAM and storage.
    - We engineered a zero-overhead, hardware-accelerated native 2D/3D renderer running at a locked 60 FPS on the Pixel Watch 3 GPU, including a native binary glTF 2.0 (`.glb`) parser and skeletal/surflet renderer for `ToastmanAnim.glb` and `BoatAnimated.glb`.
    - Direct coroutine-based JSON-RPC streaming over Wi-Fi/Bluetooth proxy with minimal battery consumption.
-2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`, `bricks.html`, `sharks.html`, `pirate.html`, `halving.html`):
+2. **Self-Contained Three.js Web Exhibits** (`index.html`, `bonsai.html`, `cuckoo.html`, `bricks.html`, `sharks.html`, `pirate.html`, `halving.html`, `ferris.html`):
    - Standalone single-file HTML/CSS/JavaScript implementations.
-   - Procedural 3D geometry, `GLTFLoader` + `AnimationMixer` character and ship animation, custom GLSL Gerstner ocean and hydro-vessel meniscus shaders, `InstancedMesh` LEGO brick rendering, refractive Fresnel glass materials, hinged mechanical clockwork, and Web Audio API sound synthesis.
+   - Procedural 3D geometry, `GLTFLoader` + `AnimationMixer` character and ship animation, custom GLSL Gerstner ocean and hydro-vessel meniscus shaders, `InstancedMesh` LEGO brick and Ferris wheel bulb rendering, refractive Fresnel glass materials, hinged mechanical clockwork, and Web Audio API sound synthesis.
    - Smooth museum-turntable auto-orbit with pinch-to-zoom and touch drag controls.
 
 ---
@@ -130,6 +137,7 @@ watch-visualiser/
 ├── sharks.html                  # CKB Shark Raft (Three.js + GLTFLoader Web Exhibit)
 ├── pirate.html                  # CKB Pirate Broadside (Three.js + GLTFLoader Web Exhibit)
 ├── halving.html                 # CKB Halving & Live Epoch Water Vessel (Three.js Web Exhibit)
+├── ferris.html                  # CKB Illuminated Ferris Wheel (Three.js Web Exhibit)
 ├── ToastmanAnim.glb             # Supplied 3D Toastman character with Action animation
 ├── BoatAnimated.glb             # Supplied 3D Pirate Ship with Action animation & texture
 ├── three.min.js                 # Bundled Three.js engine for offline execution
@@ -154,7 +162,8 @@ watch-visualiser/
         │   ├── ckb-pirate/
         │   │   ├── index.html
         │   │   └── BoatAnimated.glb
-        │   └── ckb-halving/index.html
+        │   ├── ckb-halving/index.html
+        │   └── ckb-ferris/index.html
         ├── java/network/nervos/watchvisualiser/
         │   ├── MainActivity.kt        # Rotary-scrollable Wear OS Compose menu
         │   ├── VisualiserActivity.kt  # Native visualizer activity dispatcher & back pill
@@ -170,7 +179,8 @@ watch-visualiser/
         │       ├── LegoTowerVisualiserView.kt     # 60 FPS Native Epoch Brick Tower renderer
         │       ├── SharkRaftVisualiserView.kt     # 60 FPS Native Shark Raft & GLB renderer
         │       ├── PirateShipVisualiserView.kt    # 60 FPS Native Pirate Broadside & GLB renderer
-        │       └── HalvingVesselVisualiserView.kt # 60 FPS Native Halving & Epoch Water Vessel
+        │       ├── HalvingVesselVisualiserView.kt # 60 FPS Native Halving & Epoch Water Vessel
+        │       └── FerrisWheelVisualiserView.kt   # 60 FPS Native Illuminated Ferris Wheel
         └── res/                       # Vector drawables, colors, strings
 ```
 
@@ -191,6 +201,7 @@ Open in any browser:
 - **CKB Shark Raft (`ToastmanAnim.glb`)**: [http://localhost:8084/sharks.html](http://localhost:8084/sharks.html)
 - **CKB Pirate Broadside (`BoatAnimated.glb`)**: [http://localhost:8084/pirate.html](http://localhost:8084/pirate.html)
 - **CKB Halving & Epoch Water Vessel**: [http://localhost:8084/halving.html](http://localhost:8084/halving.html)
+- **CKB Illuminated Ferris Wheel**: [http://localhost:8084/ferris.html](http://localhost:8084/ferris.html)
 
 *Tip: Click the gear icon $\rightarrow$ **"TEST BLOCK"**, **"DEMO CUCKOO"**, **"DEMO NEW BLOCK"**, or **"SIMULATE"** to trigger an immediate CKB block event.*
 
@@ -240,6 +251,9 @@ The [`VisualiserRegistry.kt`](app/src/main/java/network/nervos/watchvisualiser/d
 - [x] **Mechanical Cuckoo Clock** (ACTIVE) — Black Forest chalet clock that chimes & reveals decoded Epoch state on every canonical block.
 - [x] **Epoch Brick Tower** (ACTIVE) — Live CKB Epoch constructed block-by-block from interlocking 3D LEGO-style bricks.
 - [x] **Shark Raft (`ToastmanAnim.glb`)** (ACTIVE) — Animated 3D Toastman riding a wooden ocean raft circled by 1 shark per CKB transaction (including cellbase).
+- [x] **Pirate Broadside (`BoatAnimated.glb`)** (ACTIVE) — Ocean-going pirate ship firing 1 cannon shot per CKB transaction (including cellbase) across a Gerstner sea.
+- [x] **Halving & Epoch Water Vessel** (ACTIVE) — Borosilicate glass hydro-chronometer filling with water across the live CKB Epoch & forecasting the `8,760`-epoch Primary Issuance Halving.
+- [x] **Illuminated Ferris Wheel** (ACTIVE) — Nighttime amusement-park Ferris wheel that changes bulb palettes & pauses at the boarding station for every new CKB block.
 - [ ] **Fiber Network Star Map** (COMING SOON) — Real-time P2P lightning payment channel routing.
 - [ ] **Mempool Particle Collider** (COMING SOON) — High-energy unconfirmed transaction collisions.
 

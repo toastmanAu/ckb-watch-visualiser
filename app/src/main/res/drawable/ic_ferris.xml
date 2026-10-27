@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Outer Illuminated Ferris Wheel Rim -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#38E4FF"
+        android:strokeWidth="1.8"
+        android:pathData="M12,3A7.5,7.5 0,1 1,4.5 10.5A7.5,7.5 0,0 1,12 3Z" />
+    <!-- Spokes -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#00F5A0"
+        android:strokeWidth="1.1"
+        android:pathData="M12,3V18M4.5,10.5H19.5M6.7,5.2L17.3,15.8M17.3,5.2L6.7,15.8" />
+    <!-- A-Frame Support Legs & Station Platform -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD166"
+        android:strokeWidth="1.8"
+        android:pathData="M12,10.5L6.5,21M12,10.5L17.5,21M4,21H20" />
+    <!-- Center Axle Hub -->
+    <path
+        android:fillColor="#FFD166"
+        android:pathData="M12,8.7A1.8,1.8 0,1 1,10.2 10.5A1.8,1.8 0,0 1,12 8.7Z" />
+</vector>

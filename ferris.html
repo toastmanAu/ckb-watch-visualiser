@@ -1,0 +1,1771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Nervos CKB Illuminated Ferris Wheel — Live Block Visualizer</title>
+  <style>
+    :root {
+      --bg-night: #030712;
+      --glass-bg: rgba(7, 15, 30, 0.74);
+      --glass-border: rgba(88, 213, 255, 0.26);
+      --accent-cyan: #38e4ff;
+      --accent-emerald: #00f5a0;
+      --accent-gold: #ffd166;
+      --accent-amber: #ff9f43;
+      --accent-danger: #ff5e7e;
+      --text-primary: #f2f8ff;
+      --text-secondary: #8fb2d2;
+      --safe-top: env(safe-area-inset-top, 10px);
+      --safe-bottom: env(safe-area-inset-bottom, 12px);
+      --safe-left: env(safe-area-inset-left, 12px);
+      --safe-right: env(safe-area-inset-right, 12px);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(180deg, #02050e 0%, #071329 58%, #0c1b33 85%, #050b16 100%);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+      touch-action: none;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+    }
+
+    /* Non-intrusive HUD overlay leaving 65-80% center Ferris wheel unobstructed */
+    #ui-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: calc(var(--safe-top) + 10px) calc(var(--safe-right) + 12px) calc(var(--safe-bottom) + 12px) calc(var(--safe-left) + 12px);
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    /* Persistent Compact Status Display */
+    .hud-pill {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      padding: 8px 13px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 168px;
+    }
+
+    .hud-brand {
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+
+    .hud-status-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-amber);
+      box-shadow: 0 0 9px var(--accent-amber);
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+    }
+    .status-dot.live {
+      background: var(--accent-emerald);
+      box-shadow: 0 0 10px var(--accent-emerald);
+    }
+    .status-dot.polling {
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-cyan);
+    }
+    .status-dot.reconnecting, .status-dot.connecting {
+      background: var(--accent-amber);
+      box-shadow: 0 0 10px var(--accent-amber);
+    }
+    .status-dot.disconnected, .status-dot.error {
+      background: var(--accent-danger);
+      box-shadow: 0 0 10px var(--accent-danger);
+    }
+
+    .hud-tip {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+
+    .hud-sub {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.64rem;
+      color: var(--text-secondary);
+    }
+
+    .top-controls {
+      display: flex;
+      gap: 7px;
+      pointer-events: auto;
+    }
+
+    .glass-btn {
+      pointer-events: auto;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38);
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+    .glass-btn:active {
+      transform: scale(0.94);
+    }
+    .glass-btn:hover {
+      border-color: var(--accent-cyan);
+    }
+
+    /* Bottom Row: Compact New-Block Notification Card & Ride State Pill */
+    .bottom-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .block-toast {
+      background: rgba(8, 18, 36, 0.84);
+      border: 1px solid rgba(255, 209, 102, 0.45);
+      border-radius: 16px;
+      padding: 10px 15px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 22px rgba(56, 228, 255, 0.18);
+      min-width: 210px;
+      max-width: 280px;
+      transform: translateY(18px);
+      opacity: 0;
+      transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease, border-color 0.4s ease;
+    }
+    .block-toast.visible {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast-eyebrow {
+      font-size: 0.62rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent-gold);
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .toast-height {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 1.06rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      letter-spacing: 0.02em;
+    }
+
+    .toast-meta {
+      margin-top: 3px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.74rem;
+      color: var(--accent-cyan);
+    }
+
+    .toast-time {
+      color: var(--text-secondary);
+      font-size: 0.68rem;
+    }
+
+    .wheel-state-pill {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 999px;
+      padding: 6px 13px;
+      backdrop-filter: blur(10px);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .palette-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 8px var(--accent-cyan);
+    }
+
+    /* Modern Light-Dismiss Settings Dialog */
+    dialog#settingsDialog {
+      margin: auto;
+      width: min(92vw, 410px);
+      max-height: 86vh;
+      background: rgba(8, 18, 36, 0.96);
+      color: var(--text-primary);
+      border: 1px solid var(--glass-border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.78);
+      overflow-y: auto;
+    }
+
+    dialog#settingsDialog::backdrop {
+      background-color: rgba(0, 0, 0, 0.62);
+      backdrop-filter: blur(4px);
+    }
+
+    .dialog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .dialog-title {
+      font-size: 0.92rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+    }
+
+    .field-group {
+      margin-bottom: 11px;
+    }
+
+    .field-group label {
+      display: block;
+      font-size: 0.66rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .field-group input[type="url"],
+    .field-group input[type="text"] {
+      width: 100%;
+      background: rgba(3, 8, 18, 0.92);
+      border: 1px solid rgba(88, 213, 255, 0.3);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text-primary);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.75rem;
+    }
+
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      font-size: 0.76rem;
+      color: var(--text-primary);
+      border-top: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .dialog-status-box {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.67rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #38e4ff, #00f5a0);
+      color: #031120;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container" aria-label="3D Illuminated Nervos CKB Ferris Wheel"></div>
+
+  <div id="ui-layer">
+    <!-- Top Persistent HUD & Settings Button -->
+    <div class="top-bar">
+      <div class="hud-pill">
+        <div class="hud-brand">Nervos Network</div>
+        <div class="hud-status-row">
+          <span id="statusDot" class="status-dot connecting"></span>
+          <span id="statusText">CONNECTING</span>
+        </div>
+        <div id="tipHeightText" class="hud-tip">TIP #—</div>
+        <div id="tipSubText" class="hud-sub">Awaiting baseline tip…</div>
+      </div>
+
+      <div class="top-controls">
+        <button id="soundToggleBtn" class="glass-btn" type="button" title="Toggle station chime audio">🔇 SOUND</button>
+        <button id="settingsBtn" class="glass-btn" type="button" title="Configure CKB HTTP &amp; WebSocket endpoints">⚙ SETTINGS</button>
+      </div>
+    </div>
+
+    <!-- Bottom Compact Block Notification & Ride State -->
+    <div class="bottom-bar">
+      <div id="blockToast" class="block-toast" role="status" aria-live="polite">
+        <div class="toast-eyebrow">
+          <span id="toastTitle">NEW NERVOS BLOCK</span>
+          <span id="toastQueueBadge" style="color:var(--accent-cyan);"></span>
+        </div>
+        <div id="toastHeight" class="toast-height">#—</div>
+        <div class="toast-meta">
+          <span id="toastTxCount">— transactions</span>
+          <span id="toastTime" class="toast-time">—:—:—</span>
+        </div>
+      </div>
+
+      <div class="wheel-state-pill">
+        <span id="paletteSwatch" class="palette-swatch"></span>
+        <span id="wheelStateLabel">RUNNING · CYAN + ELECTRIC BLUE</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal Dialog -->
+  <dialog id="settingsDialog" closedby="any" aria-labelledby="settingsTitle">
+    <div class="dialog-header">
+      <h2 id="settingsTitle" class="dialog-title">CKB Network &amp; Ride Settings</h2>
+      <button id="closeSettingsBtn" class="btn-secondary" type="button">✕</button>
+    </div>
+    <form id="settingsForm" method="dialog">
+      <div class="field-group">
+        <label for="httpRpcInput">HTTP JSON-RPC Endpoint</label>
+        <input id="httpRpcInput" type="url" required placeholder="https://mainnet.ckb.dev/" />
+      </div>
+      <div class="field-group">
+        <label for="wsRpcInput">WebSocket Endpoint (new_tip_block)</label>
+        <input id="wsRpcInput" type="text" placeholder="wss://mainnet.ckb.dev/ws" />
+      </div>
+
+      <div class="toggle-row">
+        <span>Station Bell &amp; Chime Audio</span>
+        <input id="soundCheckbox" type="checkbox" />
+      </div>
+      <div class="toggle-row">
+        <span>Reduced Lighting &amp; Motion Effects</span>
+        <input id="reducedEffectsCheckbox" type="checkbox" />
+      </div>
+
+      <div id="dialogStatusBox" class="dialog-status-box">
+        Status: CONNECTING
+      </div>
+
+      <div class="dialog-actions">
+        <button id="resetDefaultsBtn" class="btn-secondary" type="button">Defaults</button>
+        <button id="reconnectNowBtn" class="btn-secondary" type="button">Reconnect</button>
+        <button id="saveSettingsBtn" class="btn-primary" type="submit">Save &amp; Apply</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+  <script>
+  (() => {
+    'use strict';
+
+    /* =========================================================================
+     * 1. CONFIG
+     * ========================================================================= */
+    const STORAGE_KEY = 'ckb_ferris_wheel_visualizer_v1';
+    const DEFAULT_CONFIG = {
+      httpRpcUrl: 'https://mainnet.ckb.dev/',
+      wsRpcUrl: 'wss://mainnet.ckb.dev/ws',
+      soundEnabled: false,
+      reducedEffects: false
+    };
+
+    const POLL_INTERVAL_MS = 3800;
+    const MAX_BLOCK_QUEUE = 8;
+    const GONDOLA_COUNT = 16;
+    const SPOKE_COUNT = 16;
+    const WHEEL_RADIUS = 5.4;
+    const INNER_RIM_RADIUS = 3.55;
+    const HUB_RADIUS = 0.82;
+    const WHEEL_DEPTH = 1.18;
+    const WHEEL_CENTER_Y = 6.35;
+
+    // Curated Nighttime Ferris-Wheel Palettes
+    const PALETTES = [
+      { name: 'CYAN + ELECTRIC BLUE', primary: 0x00f2fe, secondary: 0x0066ff, glow: '#00f2fe' },
+      { name: 'VIOLET + MAGENTA',     primary: 0xb721ff, secondary: 0xff0844, glow: '#ff2a85' },
+      { name: 'AMBER + GOLD',         primary: 0xff9f43, secondary: 0xffd166, glow: '#ffd166' },
+      { name: 'EMERALD + AQUA',       primary: 0x00f5a0, secondary: 0x00d9f5, glow: '#00f5a0' },
+      { name: 'PINK + PURPLE',        primary: 0xff5e9c, secondary: 0x8c42ff, glow: '#ff5e9c' },
+      { name: 'RED + WARM GOLD',      primary: 0xff385c, secondary: 0xffbe3d, glow: '#ff6b4a' },
+      { name: 'BLUE + COOL WHITE',    primary: 0x38b6ff, secondary: 0xe8f7ff, glow: '#68cbff' },
+      { name: 'TEAL + VIOLET',        primary: 0x00e1d9, secondary: 0x9b5de5, glow: '#00e1d9' }
+    ];
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return { ...DEFAULT_CONFIG };
+        const parsed = JSON.parse(raw);
+        return {
+          httpRpcUrl: typeof parsed.httpRpcUrl === 'string' && parsed.httpRpcUrl.trim()
+            ? parsed.httpRpcUrl.trim()
+            : DEFAULT_CONFIG.httpRpcUrl,
+          wsRpcUrl: typeof parsed.wsRpcUrl === 'string'
+            ? parsed.wsRpcUrl.trim()
+            : DEFAULT_CONFIG.wsRpcUrl,
+          soundEnabled: Boolean(parsed.soundEnabled),
+          reducedEffects: Boolean(parsed.reducedEffects)
+        };
+      } catch (_) {
+        return { ...DEFAULT_CONFIG };
+      }
+    }
+
+    function saveSettings(cfg) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+      } catch (_) {}
+    }
+
+    const config = loadSettings();
+
+    /* =========================================================================
+     * 2. APP STATE & BLOCK DEDUPLICATION
+     * ========================================================================= */
+    const appState = {
+      connectionStatus: 'CONNECTING', // CONNECTING | LIVE | POLLING | RECONNECTING | DISCONNECTED | ERROR
+      lastError: null,
+      hasHydratedBaseline: false,
+      latestBlockHash: null,
+      latestBlockNumber: null, // BigInt
+      latestBlockTimestampMs: null, // Number
+      latestTxCount: null, // Number (includes cellbase)
+      seenBlockHashes: new Set(),
+      blockEventQueue: []
+    };
+
+    function rememberBlockHash(hash) {
+      if (appState.seenBlockHashes.has(hash)) return false;
+      appState.seenBlockHashes.add(hash);
+      if (appState.seenBlockHashes.size > 400) {
+        const oldest = appState.seenBlockHashes.values().next().value;
+        appState.seenBlockHashes.delete(oldest);
+      }
+      return true;
+    }
+
+    /* =========================================================================
+     * 3. THREE.JS INITIALIZATION
+     * ========================================================================= */
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x050c1a, 0.022);
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 160);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
+
+    // Restrained Three.js Lighting (No per-bulb PointLights)
+    const ambientLight = new THREE.AmbientLight(0x304a78, 0.78);
+    scene.add(ambientLight);
+
+    const hemiLight = new THREE.HemisphereLight(0x6495ed, 0x181424, 0.65);
+    scene.add(hemiLight);
+
+    const moonLight = new THREE.DirectionalLight(0xcce4ff, 1.05);
+    moonLight.position.set(10, 18, 12);
+    scene.add(moonLight);
+
+    // Dynamic accent light near the hub/station that shifts with the active palette
+    const wheelAccentLight = new THREE.PointLight(0x00f2fe, 2.2, 24);
+    wheelAccentLight.position.set(0, WHEEL_CENTER_Y, 4.0);
+    scene.add(wheelAccentLight);
+
+    const stationWarmLight = new THREE.PointLight(0xffb86b, 1.6, 12);
+    stationWarmLight.position.set(0, 1.4, 3.2);
+    scene.add(stationWarmLight);
+
+    /* =========================================================================
+     * 4. ENVIRONMENT (Night Sky Stars, Fairground Plaza, Distant Lights)
+     * ========================================================================= */
+    const environmentGroup = new THREE.Group();
+    scene.add(environmentGroup);
+
+    // Procedural Twinkling Starfield
+    const STAR_COUNT = 260;
+    const starPositions = new Float32Array(STAR_COUNT * 3);
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const r = 45 + Math.random() * 40;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.random() * Math.PI * 0.46;
+      starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      starPositions[i * 3 + 1] = Math.abs(r * Math.cos(phi)) + 3;
+      starPositions[i * 3 + 2] = -Math.abs(r * Math.sin(phi) * Math.sin(theta)) - 10;
+    }
+    const starGeo = new THREE.BufferGeometry();
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    const starMat = new THREE.PointsMaterial({
+      color: 0xd8ecff,
+      size: 0.22,
+      transparent: true,
+      opacity: 0.82
+    });
+    const starField = new THREE.Points(starGeo, starMat);
+    environmentGroup.add(starField);
+
+    // Amusement Park Ground Plane & Reflective Plaza Circle
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x060d1a,
+      roughness: 0.85,
+      metalness: 0.15
+    });
+    const groundMesh = new THREE.Mesh(new THREE.CircleGeometry(45, 48), groundMat);
+    groundMesh.rotation.x = -Math.PI * 0.5;
+    groundMesh.position.y = -0.02;
+    environmentGroup.add(groundMesh);
+
+    const plazaMat = new THREE.MeshStandardMaterial({
+      color: 0x0f1e36,
+      roughness: 0.35,
+      metalness: 0.45
+    });
+    const plazaMesh = new THREE.Mesh(new THREE.CylinderGeometry(7.2, 7.6, 0.16, 48), plazaMat);
+    plazaMesh.position.y = 0.06;
+    environmentGroup.add(plazaMesh);
+
+    // Distant Fairground Bollard Lights around the Plaza Perimeter
+    const bollardGeo = new THREE.CylinderGeometry(0.06, 0.08, 0.85, 8);
+    const bollardMat = new THREE.MeshStandardMaterial({ color: 0x1a273a, metalness: 0.7, roughness: 0.3 });
+    const bollardLampGeo = new THREE.SphereGeometry(0.11, 8, 8);
+    const bollardLampMat = new THREE.MeshBasicMaterial({ color: 0xffcf70 });
+    for (let i = 0; i < 14; i++) {
+      const ang = (i / 14) * Math.PI * 2;
+      if (Math.sin(ang) > 0.65) continue; // Leave front entrance open
+      const bx = Math.cos(ang) * 7.0;
+      const bz = Math.sin(ang) * 7.0;
+      const post = new THREE.Mesh(bollardGeo, bollardMat);
+      post.position.set(bx, 0.45, bz);
+      const lamp = new THREE.Mesh(bollardLampGeo, bollardLampMat);
+      lamp.position.set(bx, 0.92, bz);
+      environmentGroup.add(post, lamp);
+    }
+
+    /* =========================================================================
+     * 5. FERRIS WHEEL CONSTRUCTION (ferrisWheel -> supportStructure, platform, wheelRoot)
+     * ========================================================================= */
+    const ferrisWheel = new THREE.Group();
+    scene.add(ferrisWheel);
+
+    const supportStructure = new THREE.Group();
+    const platform = new THREE.Group();
+    const wheelRoot = new THREE.Group();
+    wheelRoot.position.set(0, WHEEL_CENTER_Y, 0);
+
+    ferrisWheel.add(supportStructure);
+    ferrisWheel.add(platform);
+    ferrisWheel.add(wheelRoot);
+
+    const darkSteelMat = new THREE.MeshStandardMaterial({
+      color: 0x1c2d44,
+      metalness: 0.82,
+      roughness: 0.28
+    });
+    const brushedSteelMat = new THREE.MeshStandardMaterial({
+      color: 0x456282,
+      metalness: 0.88,
+      roughness: 0.22
+    });
+    const accentEmissiveMat = new THREE.MeshStandardMaterial({
+      color: 0x00f2fe,
+      emissive: 0x00f2fe,
+      emissiveIntensity: 0.75,
+      metalness: 0.5,
+      roughness: 0.25
+    });
+
+    function createBeamBetween(p1, p2, radius, material) {
+      const dir = new THREE.Vector3().subVectors(p2, p1);
+      const len = dir.length();
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, 10), material);
+      mesh.position.copy(p1).add(p2).multiplyScalar(0.5);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      return mesh;
+    }
+
+    // 5A. Stationary A-Frame Support Towers & Cross-Bracing
+    const legSpreadX = 3.7;
+    const legZPositions = [-WHEEL_DEPTH * 0.88, WHEEL_DEPTH * 0.88];
+    legZPositions.forEach((zPos) => {
+      const topNode = new THREE.Vector3(0, WHEEL_CENTER_Y, zPos);
+      const leftFoot = new THREE.Vector3(-legSpreadX, 0.1, zPos * 1.35);
+      const rightFoot = new THREE.Vector3(legSpreadX, 0.1, zPos * 1.35);
+
+      supportStructure.add(createBeamBetween(leftFoot, topNode, 0.14, darkSteelMat));
+      supportStructure.add(createBeamBetween(rightFoot, topNode, 0.14, darkSteelMat));
+
+      // Horizontal A-frame tie bars
+      [0.32, 0.62].forEach((t) => {
+        const lPt = new THREE.Vector3().lerpVectors(leftFoot, topNode, t);
+        const rPt = new THREE.Vector3().lerpVectors(rightFoot, topNode, t);
+        supportStructure.add(createBeamBetween(lPt, rPt, 0.065, brushedSteelMat));
+      });
+
+      // Axle bearing housing
+      const bearing = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.32, 20), brushedSteelMat);
+      bearing.rotation.x = Math.PI * 0.5;
+      bearing.position.copy(topNode);
+      supportStructure.add(bearing);
+    });
+
+    // Lateral cross-bracing between front and back A-frame legs
+    [-1, 1].forEach((side) => {
+      const pFrontLow = new THREE.Vector3(side * legSpreadX * 0.68, WHEEL_CENTER_Y * 0.34, legZPositions[1] * 1.2);
+      const pBackLow = new THREE.Vector3(side * legSpreadX * 0.68, WHEEL_CENTER_Y * 0.34, legZPositions[0] * 1.2);
+      const pFrontHigh = new THREE.Vector3(side * legSpreadX * 0.36, WHEEL_CENTER_Y * 0.66, legZPositions[1] * 1.08);
+      const pBackHigh = new THREE.Vector3(side * legSpreadX * 0.36, WHEEL_CENTER_Y * 0.66, legZPositions[0] * 1.08);
+      supportStructure.add(createBeamBetween(pFrontLow, pBackLow, 0.06, brushedSteelMat));
+      supportStructure.add(createBeamBetween(pFrontHigh, pBackHigh, 0.06, brushedSteelMat));
+      supportStructure.add(createBeamBetween(pFrontLow, pBackHigh, 0.045, darkSteelMat));
+      supportStructure.add(createBeamBetween(pBackLow, pFrontHigh, 0.045, darkSteelMat));
+    });
+
+    // Stationary Central Axle
+    const centralAxle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.24, 0.24, WHEEL_DEPTH * 2.2, 24),
+      brushedSteelMat
+    );
+    centralAxle.rotation.x = Math.PI * 0.5;
+    centralAxle.position.set(0, WHEEL_CENTER_Y, 0);
+    supportStructure.add(centralAxle);
+
+    // 5B. Stationary Boarding Station / Loading Platform Area
+    const deckMat = new THREE.MeshStandardMaterial({ color: 0x2b1d16, roughness: 0.65, metalness: 0.15 });
+    const stationDeck = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.28, 2.7), deckMat);
+    stationDeck.position.set(0, 0.32, 0);
+    platform.add(stationDeck);
+
+    // Boarding stairs at front
+    for (let s = 0; s < 3; s++) {
+      const step = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.10, 0.28), brushedSteelMat);
+      step.position.set(0, 0.08 + s * 0.09, 1.48 - s * 0.22);
+      platform.add(step);
+    }
+
+    // Illuminated Station Archway & Safety Railings
+    const archMat = new THREE.MeshStandardMaterial({
+      color: 0xffd166,
+      emissive: 0xff9f43,
+      emissiveIntensity: 0.65,
+      metalness: 0.6,
+      roughness: 0.3
+    });
+    [-1.95, 1.95].forEach((rx) => {
+      const railPost = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.75, 8), brushedSteelMat);
+      railPost.position.set(rx, 0.82, 1.15);
+      const lampGlobe = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), archMat);
+      lampGlobe.position.set(rx, 1.24, 1.15);
+      platform.add(railPost, lampGlobe);
+    });
+
+    // 5C. Rotating Wheel Assembly (hub, rims, spokes)
+    const hubGroup = new THREE.Group();
+    const spokesGroup = new THREE.Group();
+    const rimGroup = new THREE.Group();
+    wheelRoot.add(hubGroup, spokesGroup, rimGroup);
+
+    const frontZ = WHEEL_DEPTH * 0.5;
+    const backZ = -WHEEL_DEPTH * 0.5;
+
+    // Central Hub Drum & Glowing Neon Hub Rings
+    const hubDrum = new THREE.Mesh(
+      new THREE.CylinderGeometry(HUB_RADIUS, HUB_RADIUS, WHEEL_DEPTH * 1.18, 32),
+      darkSteelMat
+    );
+    hubDrum.rotation.x = Math.PI * 0.5;
+    hubGroup.add(hubDrum);
+
+    [frontZ * 1.12, backZ * 1.12].forEach((hz) => {
+      const hubNeon = new THREE.Mesh(new THREE.TorusGeometry(HUB_RADIUS * 0.78, 0.055, 14, 48), accentEmissiveMat);
+      hubNeon.position.z = hz;
+      hubGroup.add(hubNeon);
+    });
+
+    // Outer & Inner Structural Rims (Front and Back Trusses)
+    [frontZ, backZ].forEach((rz) => {
+      const outerRim = new THREE.Mesh(new THREE.TorusGeometry(WHEEL_RADIUS, 0.095, 16, 96), brushedSteelMat);
+      outerRim.position.z = rz;
+      rimGroup.add(outerRim);
+
+      const innerRim = new THREE.Mesh(new THREE.TorusGeometry(INNER_RIM_RADIUS, 0.065, 12, 80), darkSteelMat);
+      innerRim.position.z = rz;
+      rimGroup.add(innerRim);
+    });
+
+    // Radial Twin Spokes & Cross-Rungs
+    for (let i = 0; i < SPOKE_COUNT; i++) {
+      const angle = (i / SPOKE_COUNT) * Math.PI * 2;
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+
+      const outerFront = new THREE.Vector3(cosA * WHEEL_RADIUS, sinA * WHEEL_RADIUS, frontZ);
+      const outerBack = new THREE.Vector3(cosA * WHEEL_RADIUS, sinA * WHEEL_RADIUS, backZ);
+      const innerFront = new THREE.Vector3(cosA * HUB_RADIUS, sinA * HUB_RADIUS, frontZ);
+      const innerBack = new THREE.Vector3(cosA * HUB_RADIUS, sinA * HUB_RADIUS, backZ);
+
+      spokesGroup.add(createBeamBetween(innerFront, outerFront, 0.036, brushedSteelMat));
+      spokesGroup.add(createBeamBetween(innerBack, outerBack, 0.036, brushedSteelMat));
+
+      // Transverse cross-bars connecting front & back rims
+      spokesGroup.add(createBeamBetween(outerFront, outerBack, 0.042, darkSteelMat));
+
+      const midFront = new THREE.Vector3(cosA * INNER_RIM_RADIUS, sinA * INNER_RIM_RADIUS, frontZ);
+      const midBack = new THREE.Vector3(cosA * INNER_RIM_RADIUS, sinA * INNER_RIM_RADIUS, backZ);
+      spokesGroup.add(createBeamBetween(midFront, midBack, 0.032, darkSteelMat));
+    }
+
+    /* =========================================================================
+     * 6. GONDOLA SYSTEM (16 Upright Passenger Cabins with Damped Gravity Swing)
+     * ========================================================================= */
+    const gondolaMounts = new THREE.Group();
+    wheelRoot.add(gondolaMounts);
+
+    const cabinBodyMat = new THREE.MeshStandardMaterial({
+      color: 0x162844,
+      metalness: 0.65,
+      roughness: 0.30
+    });
+    const cabinWindowMat = new THREE.MeshStandardMaterial({
+      color: 0xffe6a3,
+      emissive: 0xffb347,
+      emissiveIntensity: 0.85,
+      roughness: 0.2
+    });
+
+    const gondolas = [];
+
+    for (let i = 0; i < GONDOLA_COUNT; i++) {
+      const angle = (i / GONDOLA_COUNT) * Math.PI * 2;
+      const pivotGroup = new THREE.Group();
+      pivotGroup.position.set(Math.cos(angle) * WHEEL_RADIUS, Math.sin(angle) * WHEEL_RADIUS, 0);
+
+      // Hanger yoke suspended from the axle pin between front & back rims
+      const hangerLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.56, 8), brushedSteelMat);
+      hangerLeft.position.set(0, -0.28, frontZ * 0.62);
+      const hangerRight = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.56, 8), brushedSteelMat);
+      hangerRight.position.set(0, -0.28, backZ * 0.62);
+      pivotGroup.add(hangerLeft, hangerRight);
+
+      // Gondola Roof Canopy
+      const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.44, 0.18, 8), accentEmissiveMat);
+      roof.position.set(0, -0.54, 0);
+      pivotGroup.add(roof);
+
+      // Gondola Cabin Body
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.30, 0.48, 8), cabinBodyMat);
+      body.position.set(0, -0.84, 0);
+      pivotGroup.add(body);
+
+      // Illuminated Gondola Window Band
+      const windowBand = new THREE.Mesh(new THREE.CylinderGeometry(0.39, 0.35, 0.18, 8), cabinWindowMat);
+      windowBand.position.set(0, -0.78, 0);
+      pivotGroup.add(windowBand);
+
+      // Bottom Accent Ring under Cabin
+      const bottomTrim = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.24, 0.08, 8), accentEmissiveMat);
+      bottomTrim.position.set(0, -1.10, 0);
+      pivotGroup.add(bottomTrim);
+
+      gondolaMounts.add(pivotGroup);
+      gondolas.push({
+        pivot: pivotGroup,
+        index: i,
+        baseAngle: angle,
+        swingAngle: 0,
+        swingVel: 0
+      });
+    }
+
+    /* =========================================================================
+     * 7. LIGHT SYSTEM (InstancedMesh Decorative Bulbs + Curated Palette Transitions)
+     * ========================================================================= */
+    const bulbDescriptors = [];
+
+    // Outer Rim Bulbs (64 front + 64 back)
+    const OUTER_BULBS_PER_SIDE = 64;
+    [frontZ + 0.06, backZ - 0.06].forEach((zSide) => {
+      for (let i = 0; i < OUTER_BULBS_PER_SIDE; i++) {
+        const a = (i / OUTER_BULBS_PER_SIDE) * Math.PI * 2;
+        bulbDescriptors.push({
+          x: Math.cos(a) * WHEEL_RADIUS,
+          y: Math.sin(a) * WHEEL_RADIUS,
+          z: zSide,
+          radiusNorm: 1.0,
+          angleNorm: i / OUTER_BULBS_PER_SIDE,
+          layer: 2 // outer rim
+        });
+      }
+    });
+
+    // Inner Rim Bulbs (32 front + 32 back)
+    const INNER_BULBS_PER_SIDE = 32;
+    [frontZ + 0.05, backZ - 0.05].forEach((zSide) => {
+      for (let i = 0; i < INNER_BULBS_PER_SIDE; i++) {
+        const a = (i / INNER_BULBS_PER_SIDE) * Math.PI * 2;
+        bulbDescriptors.push({
+          x: Math.cos(a) * INNER_RIM_RADIUS,
+          y: Math.sin(a) * INNER_RIM_RADIUS,
+          z: zSide,
+          radiusNorm: INNER_RIM_RADIUS / WHEEL_RADIUS,
+          angleNorm: i / INNER_BULBS_PER_SIDE,
+          layer: 1 // inner rim
+        });
+      }
+    });
+
+    // Spoke Chaser Bulbs (7 bulbs per spoke on front & back)
+    const BULBS_PER_SPOKE = 7;
+    [frontZ + 0.04, backZ - 0.04].forEach((zSide) => {
+      for (let s = 0; s < SPOKE_COUNT; s++) {
+        const a = (s / SPOKE_COUNT) * Math.PI * 2;
+        for (let k = 1; k <= BULBS_PER_SPOKE; k++) {
+          const frac = k / (BULBS_PER_SPOKE + 1);
+          const r = HUB_RADIUS + frac * (WHEEL_RADIUS - HUB_RADIUS);
+          bulbDescriptors.push({
+            x: Math.cos(a) * r,
+            y: Math.sin(a) * r,
+            z: zSide,
+            radiusNorm: frac,
+            angleNorm: s / SPOKE_COUNT,
+            layer: k % 2
+          });
+        }
+      }
+    });
+
+    const totalBulbs = bulbDescriptors.length;
+    const bulbGeo = new THREE.SphereGeometry(0.068, 8, 8);
+    const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const bulbInstancedMesh = new THREE.InstancedMesh(bulbGeo, bulbMat, totalBulbs);
+    bulbInstancedMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+
+    const dummyObj = new THREE.Object3D();
+    const tmpColor = new THREE.Color();
+    for (let i = 0; i < totalBulbs; i++) {
+      const d = bulbDescriptors[i];
+      dummyObj.position.set(d.x, d.y, d.z);
+      dummyObj.updateMatrix();
+      bulbInstancedMesh.setMatrixAt(i, dummyObj.matrix);
+      bulbInstancedMesh.setColorAt(i, tmpColor.setHex(PALETTES[0].primary));
+    }
+    bulbInstancedMesh.instanceColor.needsUpdate = true;
+    wheelRoot.add(bulbInstancedMesh);
+
+    // Palette Interpolation & Block Wave Pulse State
+    const lightState = {
+      currentPaletteIndex: 0,
+      fromPrimary: new THREE.Color(PALETTES[0].primary),
+      fromSecondary: new THREE.Color(PALETTES[0].secondary),
+      toPrimary: new THREE.Color(PALETTES[0].primary),
+      toSecondary: new THREE.Color(PALETTES[0].secondary),
+      activePrimary: new THREE.Color(PALETTES[0].primary),
+      activeSecondary: new THREE.Color(PALETTES[0].secondary),
+      transitionProgress: 1.0,
+      pulseAge: 99.0,
+      pulseActive: false
+    };
+
+    const pulseWhite = new THREE.Color(0xffffff);
+
+    function triggerNextPaletteAndPulse() {
+      let nextIdx = Math.floor(Math.random() * PALETTES.length);
+      if (nextIdx === lightState.currentPaletteIndex) {
+        nextIdx = (nextIdx + 1) % PALETTES.length;
+      }
+      lightState.currentPaletteIndex = nextIdx;
+      const nextPal = PALETTES[nextIdx];
+
+      lightState.fromPrimary.copy(lightState.activePrimary);
+      lightState.fromSecondary.copy(lightState.activeSecondary);
+      lightState.toPrimary.setHex(nextPal.primary);
+      lightState.toSecondary.setHex(nextPal.secondary);
+      lightState.transitionProgress = 0.0;
+
+      lightState.pulseAge = 0.0;
+      lightState.pulseActive = true;
+
+      const swatch = document.getElementById('paletteSwatch');
+      swatch.style.background = nextPal.glow;
+      swatch.style.boxShadow = `0 0 8px ${nextPal.glow}`;
+      updateWheelStateBadge();
+    }
+
+    function updateDecorativeLighting(dt, elapsedSec) {
+      if (lightState.transitionProgress < 1.0) {
+        lightState.transitionProgress = Math.min(1.0, lightState.transitionProgress + dt * 0.75);
+      }
+      const easeT = lightState.transitionProgress * lightState.transitionProgress * (3 - 2 * lightState.transitionProgress);
+      lightState.activePrimary.copy(lightState.fromPrimary).lerp(lightState.toPrimary, easeT);
+      lightState.activeSecondary.copy(lightState.fromSecondary).lerp(lightState.toSecondary, easeT);
+
+      // Update shared emissive accent material & scene accent light
+      accentEmissiveMat.color.copy(lightState.activePrimary);
+      accentEmissiveMat.emissive.copy(lightState.activePrimary);
+      wheelAccentLight.color.copy(lightState.activePrimary);
+
+      if (lightState.pulseActive) {
+        lightState.pulseAge += dt;
+        if (lightState.pulseAge > 4.2) {
+          lightState.pulseActive = false;
+        }
+      }
+
+      const reduced = config.reducedEffects;
+      const speedFactor = reduced ? 0.8 : 2.2;
+
+      for (let i = 0; i < totalBulbs; i++) {
+        const d = bulbDescriptors[i];
+        // Smooth radial + circumferential wave pattern between primary and secondary palette colors
+        const wave = 0.5 + 0.5 * Math.sin(d.angleNorm * Math.PI * 8 - elapsedSec * speedFactor + d.radiusNorm * 4.5);
+        tmpColor.copy(lightState.activePrimary).lerp(lightState.activeSecondary, wave);
+
+        // Restrained block arrival light pulse: hub -> spokes -> rim + clockwise outer ring sweep
+        if (lightState.pulseActive && !reduced) {
+          const radialFront = lightState.pulseAge * 0.75;
+          const radialDist = Math.abs(d.radiusNorm - radialFront);
+          const radialGlow = Math.max(0, 1.0 - radialDist * 3.8) * Math.exp(-lightState.pulseAge * 0.55);
+
+          const cwFront = (lightState.pulseAge * 0.45) % 1.0;
+          const cwDist = Math.min(Math.abs(d.angleNorm - cwFront), 1.0 - Math.abs(d.angleNorm - cwFront));
+          const cwGlow = d.layer === 2 ? Math.max(0, 1.0 - cwDist * 5.5) * Math.exp(-lightState.pulseAge * 0.45) : 0;
+
+          const totalBoost = Math.min(0.85, radialGlow + cwGlow);
+          if (totalBoost > 0.01) {
+            tmpColor.lerp(pulseWhite, totalBoost);
+          }
+        }
+
+        bulbInstancedMesh.setColorAt(i, tmpColor);
+      }
+      bulbInstancedMesh.instanceColor.needsUpdate = true;
+    }
+
+    /* =========================================================================
+     * 8. OPTIONAL WEB AUDIO SYNTHESIZER (Station Bell & Departure Tone)
+     * ========================================================================= */
+    let audioCtx = null;
+
+    function ensureAudioContext() {
+      if (!config.soundEnabled) return null;
+      if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) audioCtx = new Ctx();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+      return audioCtx;
+    }
+
+    function playStationArrivalChime() {
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      [587.33, 880.0].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.18);
+        gain.gain.setValueAtTime(0.0001, now + idx * 0.18);
+        gain.gain.exponentialRampToValueAtTime(0.08, now + idx * 0.18 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.18 + 1.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.18);
+        osc.stop(now + idx * 0.18 + 1.15);
+      });
+    }
+
+    function playStationDepartureTone() {
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(329.63, now);
+      osc.frequency.exponentialRampToValueAtTime(440.0, now + 0.65);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.045, now + 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.72);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.75);
+    }
+
+    /* =========================================================================
+     * 9. FERRIS WHEEL STATE MACHINE & BLOCK EVENT QUEUE
+     *    States: RUNNING -> DECELERATING -> STOPPED -> ACCELERATING -> RUNNING
+     * ========================================================================= */
+    const NORMAL_ANGULAR_VELOCITY = 0.24; // rad/s (~26s per full revolution)
+    const DECEL_DURATION_SEC = 1.65;
+    const STOP_HOLD_DURATION_SEC = 2.40;
+    const ACCEL_DURATION_SEC = 1.80;
+
+    const wheelMachine = {
+      state: 'RUNNING', // RUNNING | DECELERATING | STOPPED | ACCELERATING
+      wheelRotation: 0,
+      currentAngularVelocity: NORMAL_ANGULAR_VELOCITY,
+      targetAngularVelocity: NORMAL_ANGULAR_VELOCITY,
+      phaseElapsed: 0,
+      decelStartVelocity: NORMAL_ANGULAR_VELOCITY,
+      activeEvent: null
+    };
+
+    function updateWheelStateBadge() {
+      const palName = PALETTES[lightState.currentPaletteIndex].name;
+      const el = document.getElementById('wheelStateLabel');
+      el.textContent = `${wheelMachine.state} · ${palName}`;
+    }
+
+    function enqueueBlockArrivalEvent(normalizedBlock) {
+      if (appState.blockEventQueue.length >= MAX_BLOCK_QUEUE) {
+        appState.blockEventQueue.shift();
+      }
+      appState.blockEventQueue.push(normalizedBlock);
+      updateQueueBadge();
+
+      if (wheelMachine.state === 'RUNNING' && !wheelMachine.activeEvent) {
+        startNextQueuedBlockSequence();
+      }
+    }
+
+    function startNextQueuedBlockSequence() {
+      if (appState.blockEventQueue.length === 0) {
+        wheelMachine.activeEvent = null;
+        return;
+      }
+      const nextBlock = appState.blockEventQueue.shift();
+      wheelMachine.activeEvent = nextBlock;
+      updateQueueBadge();
+
+      // 1. Update lighting palette & initiate wave pulse
+      triggerNextPaletteAndPulse();
+
+      // 2. Show compact bottom notification
+      showBlockNotificationToast(nextBlock);
+      playStationArrivalChime();
+
+      // 3. Transition Ferris wheel to DECELERATING
+      wheelMachine.state = 'DECELERATING';
+      wheelMachine.phaseElapsed = 0;
+      wheelMachine.decelStartVelocity = wheelMachine.currentAngularVelocity;
+      wheelMachine.targetAngularVelocity = 0;
+      updateWheelStateBadge();
+    }
+
+    function updateFerrisWheelStateMachine(dt) {
+      wheelMachine.phaseElapsed += dt;
+
+      if (wheelMachine.state === 'DECELERATING') {
+        const t = Math.min(1.0, wheelMachine.phaseElapsed / DECEL_DURATION_SEC);
+        // Smooth cubic ease-out to 0 velocity
+        const easeOut = 1.0 - Math.pow(1.0 - t, 3);
+        wheelMachine.currentAngularVelocity = wheelMachine.decelStartVelocity * (1.0 - easeOut);
+
+        if (t >= 1.0) {
+          wheelMachine.currentAngularVelocity = 0;
+          wheelMachine.state = 'STOPPED';
+          wheelMachine.phaseElapsed = 0;
+          updateWheelStateBadge();
+        }
+      } else if (wheelMachine.state === 'STOPPED') {
+        wheelMachine.currentAngularVelocity = 0;
+        if (wheelMachine.phaseElapsed >= STOP_HOLD_DURATION_SEC) {
+          wheelMachine.state = 'ACCELERATING';
+          wheelMachine.phaseElapsed = 0;
+          wheelMachine.targetAngularVelocity = NORMAL_ANGULAR_VELOCITY;
+          hideBlockNotificationToast();
+          playStationDepartureTone();
+          updateWheelStateBadge();
+        }
+      } else if (wheelMachine.state === 'ACCELERATING') {
+        const t = Math.min(1.0, wheelMachine.phaseElapsed / ACCEL_DURATION_SEC);
+        const easeInOut = t * t * (3.0 - 2.0 * t);
+        wheelMachine.currentAngularVelocity = NORMAL_ANGULAR_VELOCITY * easeInOut;
+
+        if (t >= 1.0) {
+          wheelMachine.currentAngularVelocity = NORMAL_ANGULAR_VELOCITY;
+          wheelMachine.state = 'RUNNING';
+          wheelMachine.phaseElapsed = 0;
+          wheelMachine.activeEvent = null;
+          updateWheelStateBadge();
+
+          // If another block arrived while decelerating/stopped/accelerating, start it cleanly
+          if (appState.blockEventQueue.length > 0) {
+            startNextQueuedBlockSequence();
+          }
+        }
+      } else {
+        // RUNNING
+        wheelMachine.currentAngularVelocity = NORMAL_ANGULAR_VELOCITY;
+      }
+
+      const prevVel = wheelRoot.userData.prevVel || wheelMachine.currentAngularVelocity;
+      const angularAccel = (wheelMachine.currentAngularVelocity - prevVel) / Math.max(0.001, dt);
+      wheelRoot.userData.prevVel = wheelMachine.currentAngularVelocity;
+
+      wheelMachine.wheelRotation += wheelMachine.currentAngularVelocity * dt;
+      wheelRoot.rotation.z = wheelMachine.wheelRotation;
+
+      // Update Gondola upright counter-rotation + restrained pendulum settling
+      for (let i = 0; i < gondolas.length; i++) {
+        const g = gondolas[i];
+        const spring = -12.0 * g.swingAngle - 3.2 * g.swingVel - angularAccel * 0.14;
+        g.swingVel += spring * dt;
+        g.swingAngle += g.swingVel * dt;
+        g.swingAngle = Math.max(-0.18, Math.min(0.18, g.swingAngle));
+        g.pivot.rotation.z = -wheelMachine.wheelRotation + g.swingAngle;
+      }
+    }
+
+    /* =========================================================================
+     * 10. CHAIN NORMALIZATION (Hex BigInt Parsing & Cellbase-Inclusive Tx Count)
+     * ========================================================================= */
+    function normalizeBlockPayload(rawBlockOrHeader, explicitTxCount = null) {
+      if (!rawBlockOrHeader) throw new Error('Empty block payload');
+      const header = rawBlockOrHeader.header ? rawBlockOrHeader.header : rawBlockOrHeader;
+      if (!header.hash || !header.number || !header.timestamp) {
+        throw new Error('Malformed CKB block header');
+      }
+
+      const blockHash = String(header.hash);
+      const blockNumberBigInt = BigInt(header.number);
+      const timestampBigInt = BigInt(header.timestamp);
+
+      // Total transaction count INCLUDING the cellbase transaction
+      let txCount = 1;
+      if (Array.isArray(rawBlockOrHeader.transactions)) {
+        txCount = Math.max(1, rawBlockOrHeader.transactions.length);
+      } else if (typeof explicitTxCount === 'number' && explicitTxCount >= 1) {
+        txCount = explicitTxCount;
+      }
+
+      return {
+        hash: blockHash,
+        number: blockNumberBigInt,
+        timestampMs: Number(timestampBigInt),
+        txCount
+      };
+    }
+
+    function processIncomingBlock(normalizedBlock, options = { isBaselineHydration: false, snapWithoutAnimation: false }) {
+      const isNewHash = rememberBlockHash(normalizedBlock.hash);
+      if (!isNewHash && !options.isBaselineHydration && !options.snapWithoutAnimation) {
+        return false;
+      }
+
+      appState.latestBlockHash = normalizedBlock.hash;
+      appState.latestBlockNumber = normalizedBlock.number;
+      appState.latestBlockTimestampMs = normalizedBlock.timestampMs;
+      appState.latestTxCount = normalizedBlock.txCount;
+      appState.lastError = null;
+
+      updatePersistentHud();
+
+      // Critical Rule: Initial hydration or reconnect state snap must NOT trigger the Ferris-wheel stop animation
+      if (!appState.hasHydratedBaseline || options.isBaselineHydration || options.snapWithoutAnimation) {
+        appState.hasHydratedBaseline = true;
+        return true;
+      }
+
+      enqueueBlockArrivalEvent(normalizedBlock);
+      return true;
+    }
+
+    /* =========================================================================
+     * 11. CKB RPC TRANSPORT, WEBSOCKET SUBSCRIPTION & HTTP FALLBACK
+     * ========================================================================= */
+    let rpcRequestId = 1;
+    let activeSocket = null;
+    let subscribeRpcId = null;
+    let subscriptionId = null;
+    let reconnectTimer = null;
+    let pollIntervalTimer = null;
+    let reconnectAttempt = 0;
+
+    async function ckbHttpRpc(method, params = [], timeoutMs = 8000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(config.httpRpcUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            id: rpcRequestId++,
+            jsonrpc: '2.0',
+            method,
+            params
+          }),
+          signal: controller.signal
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const json = await response.json();
+        if (json.error) throw new Error(json.error.message || 'CKB JSON-RPC error');
+        return json.result;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    /**
+     * Fetches the current canonical tip header and full block over HTTP RPC.
+     * Used for initial baseline hydration, reconnect reorg-safe snapping, and HTTP fallback polling.
+     */
+    async function hydrateOrPollCanonicalTip(options = { isBaselineHydration: false, snapWithoutAnimation: false }) {
+      try {
+        const tipHeader = await ckbHttpRpc('get_tip_header', []);
+        if (!tipHeader || !tipHeader.hash) throw new Error('Empty tip header');
+
+        // If we already processed this exact block hash and this is just a routine poll, skip downloading full block
+        if (
+          appState.seenBlockHashes.has(tipHeader.hash) &&
+          !options.isBaselineHydration &&
+          !options.snapWithoutAnimation
+        ) {
+          return true;
+        }
+
+        const fullBlock = await ckbHttpRpc('get_block', [tipHeader.hash]);
+        const normalized = normalizeBlockPayload(fullBlock || tipHeader);
+        processIncomingBlock(normalized, options);
+        return true;
+      } catch (err) {
+        appState.lastError = err.message || 'HTTP RPC unreachable';
+        if (!activeSocket || activeSocket.readyState !== WebSocket.OPEN) {
+          setConnectionStatus('ERROR');
+        }
+        return false;
+      }
+    }
+
+    function setConnectionStatus(status) {
+      appState.connectionStatus = status;
+      updatePersistentHud();
+    }
+
+    function stopAllTransport() {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      if (pollIntervalTimer) {
+        clearInterval(pollIntervalTimer);
+        pollIntervalTimer = null;
+      }
+      if (activeSocket) {
+        try {
+          activeSocket.onopen = null;
+          activeSocket.onmessage = null;
+          activeSocket.onerror = null;
+          activeSocket.onclose = null;
+          activeSocket.close();
+        } catch (_) {}
+        activeSocket = null;
+      }
+      subscribeRpcId = null;
+      subscriptionId = null;
+    }
+
+    function startHttpPollingFallback() {
+      if (pollIntervalTimer) return;
+      setConnectionStatus('POLLING');
+      hydrateOrPollCanonicalTip({
+        isBaselineHydration: !appState.hasHydratedBaseline,
+        snapWithoutAnimation: false
+      });
+      pollIntervalTimer = setInterval(() => {
+        hydrateOrPollCanonicalTip({
+          isBaselineHydration: !appState.hasHydratedBaseline,
+          snapWithoutAnimation: false
+        });
+      }, POLL_INTERVAL_MS);
+    }
+
+    function scheduleWebSocketReconnect() {
+      if (reconnectTimer) return;
+
+      // Start HTTP polling fallback so the visualizer keeps receiving real blocks while WS reconnects
+      startHttpPollingFallback();
+
+      const delayMs = Math.min(22000, 1600 * Math.pow(1.65, Math.min(reconnectAttempt, 6))) + Math.random() * 600;
+      reconnectAttempt++;
+
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        if (config.wsRpcUrl) {
+          connectWebSocketTransport();
+        }
+      }, delayMs);
+    }
+
+    function connectWebSocketTransport() {
+      if (!config.wsRpcUrl) {
+        startHttpPollingFallback();
+        return;
+      }
+
+      // Guard against mixed-content HTTPS -> ws:// browser restrictions
+      if (window.location.protocol === 'https:' && /^ws:\/\//i.test(config.wsRpcUrl)) {
+        appState.lastError = 'HTTPS page cannot open insecure ws:// socket; using HTTP polling';
+        startHttpPollingFallback();
+        return;
+      }
+
+      if (activeSocket) {
+        try { activeSocket.close(); } catch (_) {}
+        activeSocket = null;
+      }
+
+      setConnectionStatus(reconnectAttempt > 0 ? 'RECONNECTING' : 'CONNECTING');
+
+      let ws;
+      try {
+        ws = new WebSocket(config.wsRpcUrl);
+      } catch (err) {
+        scheduleWebSocketReconnect();
+        return;
+      }
+      activeSocket = ws;
+
+      ws.onopen = () => {
+        if (activeSocket !== ws) return;
+        const wasReconnect = reconnectAttempt > 0;
+        reconnectAttempt = 0;
+
+        if (pollIntervalTimer) {
+          clearInterval(pollIntervalTimer);
+          pollIntervalTimer = null;
+        }
+
+        // 1. Subscribe to new_tip_block
+        subscribeRpcId = rpcRequestId++;
+        ws.send(JSON.stringify({
+          id: subscribeRpcId,
+          jsonrpc: '2.0',
+          method: 'subscribe',
+          params: ['new_tip_block']
+        }));
+
+        // 2. Hydrate current chain state using HTTP RPC (or snap canonical tip on reconnect)
+        hydrateOrPollCanonicalTip({
+          isBaselineHydration: !appState.hasHydratedBaseline,
+          snapWithoutAnimation: wasReconnect
+        });
+      };
+
+      ws.onmessage = (event) => {
+        if (activeSocket !== ws) return;
+        try {
+          const msg = JSON.parse(event.data);
+
+          // Case 1: JSON-RPC subscribe acknowledgement containing subscription ID
+          if (msg.id === subscribeRpcId && msg.result) {
+            subscriptionId = msg.result;
+            setConnectionStatus('LIVE');
+            return;
+          }
+
+          // Case 2: Pushed new_tip_block notification
+          if (msg.method === 'subscribe' && msg.params && msg.params.result) {
+            if (subscriptionId && msg.params.subscription && msg.params.subscription !== subscriptionId) {
+              return;
+            }
+            const rawBlock = typeof msg.params.result === 'string'
+              ? JSON.parse(msg.params.result)
+              : msg.params.result;
+            const normalized = normalizeBlockPayload(rawBlock);
+            processIncomingBlock(normalized, {
+              isBaselineHydration: !appState.hasHydratedBaseline,
+              snapWithoutAnimation: false
+            });
+          }
+        } catch (_) {}
+      };
+
+      ws.onerror = () => {
+        if (activeSocket !== ws) return;
+      };
+
+      ws.onclose = () => {
+        if (activeSocket !== ws) return;
+        activeSocket = null;
+        subscriptionId = null;
+        scheduleWebSocketReconnect();
+      };
+    }
+
+    function initializeChainTransport() {
+      stopAllTransport();
+      reconnectAttempt = 0;
+
+      // Immediately begin baseline hydration over HTTP RPC while opening WebSocket
+      hydrateOrPollCanonicalTip({
+        isBaselineHydration: !appState.hasHydratedBaseline,
+        snapWithoutAnimation: false
+      });
+
+      if (config.wsRpcUrl) {
+        connectWebSocketTransport();
+      } else {
+        startHttpPollingFallback();
+      }
+    }
+
+    /* =========================================================================
+     * 12. UI / SETTINGS & COMPACT BLOCK NOTIFICATION
+     * ========================================================================= */
+    const elStatusDot = document.getElementById('statusDot');
+    const elStatusText = document.getElementById('statusText');
+    const elTipHeightText = document.getElementById('tipHeightText');
+    const elTipSubText = document.getElementById('tipSubText');
+    const elBlockToast = document.getElementById('blockToast');
+    const elToastHeight = document.getElementById('toastHeight');
+    const elToastTxCount = document.getElementById('toastTxCount');
+    const elToastTime = document.getElementById('toastTime');
+    const elToastQueueBadge = document.getElementById('toastQueueBadge');
+    const elDialogStatusBox = document.getElementById('dialogStatusBox');
+    const elSoundToggleBtn = document.getElementById('soundToggleBtn');
+
+    function formatDecimalBigInt(valBigInt) {
+      if (valBigInt === null || valBigInt === undefined) return '—';
+      return valBigInt.toLocaleString();
+    }
+
+    function formatTimeHms(timestampMs) {
+      if (!timestampMs) return '—:—:—';
+      const d = new Date(timestampMs);
+      return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function updatePersistentHud() {
+      const status = appState.connectionStatus;
+      elStatusDot.className = 'status-dot ' + status.toLowerCase();
+      elStatusText.textContent = status;
+
+      if (appState.latestBlockNumber !== null) {
+        elTipHeightText.textContent = `TIP #${formatDecimalBigInt(appState.latestBlockNumber)}`;
+        const txWord = appState.latestTxCount === 1 ? 'tx' : 'txs';
+        elTipSubText.textContent = `${appState.latestTxCount} ${txWord} · ${formatTimeHms(appState.latestBlockTimestampMs)}`;
+      } else if (appState.lastError) {
+        elTipSubText.textContent = appState.lastError;
+      }
+
+      elDialogStatusBox.textContent =
+        `Status: ${status}` +
+        (appState.latestBlockNumber !== null ? ` · Tip #${formatDecimalBigInt(appState.latestBlockNumber)}` : '') +
+        (appState.lastError ? `\nNote: ${appState.lastError}` : '');
+    }
+
+    function updateQueueBadge() {
+      const qLen = appState.blockEventQueue.length;
+      elToastQueueBadge.textContent = qLen > 0 ? `+${qLen} QUEUED` : '';
+    }
+
+    function showBlockNotificationToast(block) {
+      elToastHeight.textContent = `#${formatDecimalBigInt(block.number)}`;
+      const txWord = block.txCount === 1 ? 'transaction' : 'transactions';
+      elToastTxCount.textContent = `${block.txCount} ${txWord}`;
+      elToastTime.textContent = formatTimeHms(block.timestampMs);
+      updateQueueBadge();
+      elBlockToast.classList.add('visible');
+    }
+
+    function hideBlockNotificationToast() {
+      elBlockToast.classList.remove('visible');
+    }
+
+    function syncSoundButtonUI() {
+      elSoundToggleBtn.textContent = config.soundEnabled ? '🔊 SOUND' : '🔇 SOUND';
+    }
+    syncSoundButtonUI();
+
+    elSoundToggleBtn.addEventListener('click', () => {
+      config.soundEnabled = !config.soundEnabled;
+      saveSettings(config);
+      syncSoundButtonUI();
+      if (config.soundEnabled) ensureAudioContext();
+    });
+
+    // Settings Modal Dialog with Modern Light-Dismiss + Fallback
+    const settingsDialog = document.getElementById('settingsDialog');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const settingsForm = document.getElementById('settingsForm');
+    const httpRpcInput = document.getElementById('httpRpcInput');
+    const wsRpcInput = document.getElementById('wsRpcInput');
+    const soundCheckbox = document.getElementById('soundCheckbox');
+    const reducedEffectsCheckbox = document.getElementById('reducedEffectsCheckbox');
+    const resetDefaultsBtn = document.getElementById('resetDefaultsBtn');
+    const reconnectNowBtn = document.getElementById('reconnectNowBtn');
+
+    // Fallback for browsers that do not yet support <dialog closedby="any">
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      settingsDialog.addEventListener('click', (event) => {
+        if (event.target !== settingsDialog) return;
+        const rect = settingsDialog.getBoundingClientRect();
+        const isDialogContent = (
+          rect.top <= event.clientY &&
+          event.clientY <= rect.top + rect.height &&
+          rect.left <= event.clientX &&
+          event.clientX <= rect.left + rect.width
+        );
+        if (isDialogContent) return;
+        settingsDialog.close();
+      });
+    }
+
+    settingsBtn.addEventListener('click', () => {
+      httpRpcInput.value = config.httpRpcUrl;
+      wsRpcInput.value = config.wsRpcUrl;
+      soundCheckbox.checked = config.soundEnabled;
+      reducedEffectsCheckbox.checked = config.reducedEffects;
+      updatePersistentHud();
+      settingsDialog.showModal();
+    });
+
+    closeSettingsBtn.addEventListener('click', () => settingsDialog.close());
+
+    resetDefaultsBtn.addEventListener('click', () => {
+      httpRpcInput.value = DEFAULT_CONFIG.httpRpcUrl;
+      wsRpcInput.value = DEFAULT_CONFIG.wsRpcUrl;
+      soundCheckbox.checked = DEFAULT_CONFIG.soundEnabled;
+      reducedEffectsCheckbox.checked = DEFAULT_CONFIG.reducedEffects;
+    });
+
+    reconnectNowBtn.addEventListener('click', () => {
+      config.httpRpcUrl = httpRpcInput.value.trim() || DEFAULT_CONFIG.httpRpcUrl;
+      config.wsRpcUrl = wsRpcInput.value.trim();
+      saveSettings(config);
+      initializeChainTransport();
+    });
+
+    settingsForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      config.httpRpcUrl = httpRpcInput.value.trim() || DEFAULT_CONFIG.httpRpcUrl;
+      config.wsRpcUrl = wsRpcInput.value.trim();
+      config.soundEnabled = soundCheckbox.checked;
+      config.reducedEffects = reducedEffectsCheckbox.checked;
+      saveSettings(config);
+      syncSoundButtonUI();
+      settingsDialog.close();
+      initializeChainTransport();
+    });
+
+    /* =========================================================================
+     * 13. MOBILE INPUT & RESPONSIVE CAMERA FRAMING
+     * ========================================================================= */
+    let userYaw = 0;
+    let userPitch = 0;
+    let targetYaw = 0;
+    let targetPitch = 0;
+    let isDraggingScene = false;
+    let lastPointerX = 0;
+    let lastPointerY = 0;
+
+    container.addEventListener('pointerdown', (e) => {
+      isDraggingScene = true;
+      lastPointerX = e.clientX;
+      lastPointerY = e.clientY;
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDraggingScene) return;
+      const dx = e.clientX - lastPointerX;
+      const dy = e.clientY - lastPointerY;
+      lastPointerX = e.clientX;
+      lastPointerY = e.clientY;
+      targetYaw = Math.max(-0.52, Math.min(0.52, targetYaw - dx * 0.0045));
+      targetPitch = Math.max(-0.16, Math.min(0.24, targetPitch + dy * 0.0035));
+    });
+
+    window.addEventListener('pointerup', () => {
+      isDraggingScene = false;
+    });
+
+    function updateCameraAndViewport() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const aspect = w / Math.max(1, h);
+      camera.aspect = aspect;
+
+      // Keep the entire Ferris wheel (height ~12.8m from platform to top gondola)
+      // occupying ~70-78% of viewport height without clipping on narrow portrait phones
+      const vFovRad = THREE.MathUtils.degToRad(camera.fov);
+      const desiredSceneHeight = 16.6;
+      let dist = (desiredSceneHeight * 0.5) / Math.tan(vFovRad * 0.5);
+      if (aspect < 0.72) {
+        dist = Math.max(dist, (13.8 * 0.5) / (Math.tan(vFovRad * 0.5) * aspect));
+      }
+      camera.userData.baseDist = dist;
+      camera.updateProjectionMatrix();
+
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(w, h);
+    }
+    updateCameraAndViewport();
+
+    window.addEventListener('resize', updateCameraAndViewport);
+    window.addEventListener('orientationchange', () => setTimeout(updateCameraAndViewport, 120));
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        // Snap to current canonical tip when returning from mobile background
+        hydrateOrPollCanonicalTip({
+          isBaselineHydration: !appState.hasHydratedBaseline,
+          snapWithoutAnimation: true
+        });
+        if (config.wsRpcUrl && (!activeSocket || activeSocket.readyState !== WebSocket.OPEN)) {
+          connectWebSocketTransport();
+        }
+      }
+    });
+
+    /* =========================================================================
+     * 14. ANIMATION LOOP (Single requestAnimationFrame with delta-time)
+     * ========================================================================= */
+    let prevTimeMs = performance.now();
+    let elapsedTimeSec = 0;
+
+    function animate(nowMs) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(0.05, Math.max(0.001, (nowMs - prevTimeMs) * 0.001));
+      prevTimeMs = nowMs;
+      elapsedTimeSec += dt;
+
+      // 1. Update Ferris Wheel State Machine & Gondola Gravity Physics
+      updateFerrisWheelStateMachine(dt);
+
+      // 2. Update Decorative Bulb Palettes & Block Arrival Light Pulse
+      updateDecorativeLighting(dt, elapsedTimeSec);
+
+      // 3. Subtle Camera Drift + Constrained Touch Orbit
+      if (!isDraggingScene && !config.reducedEffects) {
+        targetYaw += Math.sin(elapsedTimeSec * 0.25) * 0.0004;
+      }
+      userYaw += (targetYaw - userYaw) * 0.08;
+      userPitch += (targetPitch - userPitch) * 0.08;
+
+      const baseDist = camera.userData.baseDist || 22.0;
+      const driftX = config.reducedEffects ? 0 : Math.sin(elapsedTimeSec * 0.32) * 0.45;
+      const driftY = config.reducedEffects ? 0 : Math.cos(elapsedTimeSec * 0.24) * 0.22;
+
+      camera.position.x = Math.sin(userYaw) * baseDist + driftX;
+      camera.position.y = (WHEEL_CENTER_Y - 0.15) + Math.sin(userPitch) * 4.5 + driftY;
+      camera.position.z = Math.cos(userYaw) * baseDist;
+      camera.lookAt(0, WHEEL_CENTER_Y - 0.25, 0);
+
+      // 4. Twinkle night sky stars subtly
+      starMat.opacity = 0.72 + 0.16 * Math.sin(elapsedTimeSec * 1.4);
+
+      renderer.render(scene, camera);
+    }
+
+    // Start chain transport & render loop
+    updateWheelStateBadge();
+    initializeChainTransport();
+    requestAnimationFrame(animate);
+  })();
+  </script>
+</body>
+</html>
