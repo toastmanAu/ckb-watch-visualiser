@@ -1,11 +1,14 @@
 # ⌚ Nervos CKB Wear OS Visualisers (Pixel Watch 3)
 
 [![Wear OS](https://img.shields.io/badge/Wear%20OS-5.0%20%7C%20Pixel%20Watch%203-00f0ff?style=for-the-badge&logo=android)](https://wearos.google.com/)
+[![Release v1.0.0](https://img.shields.io/badge/Release-v1.0.0%20(Signed%20APK%20%2B%20AAB)-brightgreen?style=for-the-badge&logo=github)](https://github.com/toastmanAu/ckb-watch-visualiser/releases/tag/v1.0.0)
 [![Nervos CKB](https://img.shields.io/badge/Nervos-CKB%20Cell%20Model-00ffaa?style=for-the-badge&logo=blockchain)](https://www.nervos.org/)
 [![Three.js](https://img.shields.io/badge/Three.js-WebGL%203D-black?style=for-the-badge&logo=threedotjs)](https://threejs.org/)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Compose%20for%20Wear-7f52ff?style=for-the-badge&logo=kotlin)](https://developer.android.com/training/wearables/compose)
 
 An interactive, high-performance **Wear OS (Pixel Watch 3)** housing and launcher for live **Nervos Network (CKB)** blockchain visualizers.
+
+> 📥 **Download Release v1.0.0**: Grab [`ckb-watch-visualiser-v1.0.0.apk`](https://github.com/toastmanAu/ckb-watch-visualiser/releases/download/v1.0.0/ckb-watch-visualiser-v1.0.0.apk) for direct watch installation or [`ckb-watch-visualiser-v1.0.0.aab`](https://github.com/toastmanAu/ckb-watch-visualiser/releases/download/v1.0.0/ckb-watch-visualiser-v1.0.0.aab) for Google Play Console.
 
 This project bridges live on-chain UTXO state transitions into tactile, scientific, and contemplative exhibits on your wrist, complete with physical digital crown navigation, haptic engine feedback, and standalone Three.js mobile-first web exhibits.
 
@@ -208,6 +211,18 @@ Open in any browser:
 ---
 
 ### 2. Deploy to Physical Pixel Watch 3
+
+#### Option A: Direct Download (No build required!)
+1. Download [`ckb-watch-visualiser-v1.0.0.apk`](https://github.com/toastmanAu/ckb-watch-visualiser/releases/download/v1.0.0/ckb-watch-visualiser-v1.0.0.apk) from the [v1.0.0 Release](https://github.com/toastmanAu/ckb-watch-visualiser/releases/tag/v1.0.0).
+2. Install via phone or PC:
+   - **From Android Phone**: Open **Wear Installer 2** or **Bugjaeger**, connect via Wireless Debugging, and push the APK.
+   - **From Computer**:
+     ```bash
+     adb connect <WATCH_IP>:<PORT>
+     adb install -r ckb-watch-visualiser-v1.0.0.apk
+     ```
+
+#### Option B: Build from Source
 1. Enable **Developer Options** and **Wireless/USB Debugging** on your Pixel Watch 3.
 2. Connect via ADB:
    ```bash
@@ -215,7 +230,7 @@ Open in any browser:
    # or connect via USB charging cradle
    adb devices
    ```
-3. Build and install the debug APK:
+3. Build and install:
    ```bash
    ./gradlew assembleDebug
    adb install -r app/build/outputs/apk/debug/app-debug.apk
